@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # WinEase
 
 WinEase 是一个面向 Windows 11 的易用性增强工具集。项目采用 C++20、Qt 6.8 Widgets 和 CMake 构建，将系统能力封装在平台层，将每项用户功能拆分为可独立加载的 Qt 插件。
@@ -163,3 +164,6 @@ cmake --build build `
 ├─ tests/       运行时自检程序
 └─ refrences/   外部参考项目（不属于 WinEase 核心构建）
 ```
+=======
+# WinEase
+>>>>>>> 4a7ce1b416e726e2ebd475e59bd5f4f12e54bb39
