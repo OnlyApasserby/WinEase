@@ -1,0 +1,9 @@
+{
+    "name": "快速关机",
+    "id": "monitor.power_panel",
+    "version": "1.0.0",
+    "category": "monitor",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "锁定/注销/睡眠/休眠/重启/关机：二次确认 + 可取消倒计时，关机前先落盘插件状态"
+}

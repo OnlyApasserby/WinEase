@@ -1,0 +1,9 @@
+{
+    "name": "屏幕取色器",
+    "id": "monitor.color_picker",
+    "version": "1.0.0",
+    "category": "monitor",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "取光标处的屏幕颜色，一键复制成 HEX / RGB / HSL / CMYK"
+}

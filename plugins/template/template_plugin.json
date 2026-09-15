@@ -1,0 +1,9 @@
+{
+    "name": "插件模板",
+    "id": "dev.template",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "功能插件模板，复制本目录即可创建新插件"
+}

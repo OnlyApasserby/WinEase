@@ -1,0 +1,9 @@
+{
+    "name": "壁纸自动切换",
+    "id": "personal.wallpaper",
+    "version": "1.0.0",
+    "category": "personal",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "从指定文件夹按序或随机轮换桌面壁纸，可定时自动换、可回滚；停用即恢复原壁纸"
+}

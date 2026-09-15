@@ -1,0 +1,9 @@
+{
+    "name": "亮度色温护眼",
+    "id": "display.brightness",
+    "version": "1.0.0",
+    "category": "display",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "外接屏 DDC/CI、内置屏 WMI 调亮度；色温调节与按时间自动切换的护眼模式"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "JSON / XML 格式化",
+    "id": "dev.text_format",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "把选中或剪贴板里的 JSON/XML 一键格式化、压缩、转义；出错时给出精确行列号"
+}

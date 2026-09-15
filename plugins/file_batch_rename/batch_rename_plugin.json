@@ -1,0 +1,9 @@
+{
+    "name": "批量重命名",
+    "id": "file.batch_rename",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "按规则批量改名：实时预览、冲突拒绝执行、一键撤销（重启后仍可撤）"
+}

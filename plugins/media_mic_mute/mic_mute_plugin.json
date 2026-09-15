@@ -1,0 +1,9 @@
+{
+    "name": "麦克风一键静音",
+    "id": "media.mic_mute",
+    "version": "1.0.0",
+    "category": "media",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "快捷键一键闭麦；托盘图标常驻显示系统真实的麦克风状态"
+}

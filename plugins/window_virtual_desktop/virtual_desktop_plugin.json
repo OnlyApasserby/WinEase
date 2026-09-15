@@ -1,0 +1,9 @@
+{
+    "name": "虚拟桌面窗口一览",
+    "id": "window.virtual_desktop",
+    "version": "1.0.0",
+    "category": "window",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "看看每个虚拟桌面上有哪些窗口（只读，不动任何窗口）"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "窗口置底",
+    "id": "window.bottom",
+    "version": "1.0.0",
+    "category": "window",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "把窗口钉在其它窗口下面，像动态壁纸一样不被遮挡干扰"
+}

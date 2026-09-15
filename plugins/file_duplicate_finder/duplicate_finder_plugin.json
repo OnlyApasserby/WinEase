@@ -1,0 +1,9 @@
+{
+    "name": "重复文件查找",
+    "id": "file.duplicate_finder",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "按大小分组 + 头部抽样 + 全量哈希四级筛出重复文件；删除只走回收站"
+}

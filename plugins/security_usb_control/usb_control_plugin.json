@@ -1,0 +1,9 @@
+{
+    "name": "USB 设备管控",
+    "id": "security.usb_control",
+    "version": "1.0.0",
+    "category": "security",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "列出可安全移除的存储设备（U 盘/移动硬盘/外置 SSD）并逐个安全弹出，占用时说明是谁在阻止"
+}

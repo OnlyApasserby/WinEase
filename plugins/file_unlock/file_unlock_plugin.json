@@ -1,0 +1,9 @@
+{
+    "name": "文件锁定解除",
+    "id": "file.unlock",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "用 Restart Manager 查出是哪个进程占用了删不掉的文件，二次确认后结束它，再移到回收站"
+}

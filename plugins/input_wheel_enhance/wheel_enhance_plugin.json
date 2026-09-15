@@ -1,0 +1,9 @@
+{
+    "name": "滚轮增强",
+    "id": "input.wheel_enhance",
+    "version": "1.0.0",
+    "category": "input",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "在任务栏上滚动即可调节音量（其余位置的滚轮照常放行）"
+}

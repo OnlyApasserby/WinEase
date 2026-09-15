@@ -1,0 +1,9 @@
+{
+    "name": "右键菜单扩展",
+    "id": "file.context_menu",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "在资源管理器右键菜单里加几项好用的命令：复制完整路径、计算哈希、在此处打开终端"
+}

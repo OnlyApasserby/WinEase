@@ -1,0 +1,9 @@
+{
+    "name": "屏幕标尺",
+    "id": "display.ruler",
+    "version": "1.0.0",
+    "category": "display",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "全屏透明标尺：跟随鼠标量水平/垂直/斜向距离，可切 px/cm/英寸，支持多条并存"
+}

@@ -1,0 +1,51 @@
+# ============================================================================
+#  WinEase .gitignore
+# ============================================================================
+
+# 构建目录（约定：build/ 为本地调试构建目录）
+build/
+build-*/
+builde/
+out/
+cmake-build-*/
+
+# CMake / MSVC 产物
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.exp
+*.lib
+*.tlog
+*.log
+.vs/
+.codebuddy/
+# Qt 自动生成
+*_autogen/
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+
+# 运行时输出（若在源码目录内直接运行）
+bin/
+plugins_out/
+CODEBUDDY.md
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.user
+Thumbs.db
+desktop.ini
+logs/
+#开源项目的参考
+referances/

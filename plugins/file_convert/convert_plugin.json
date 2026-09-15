@@ -1,0 +1,9 @@
+{
+    "name": "批量格式转换",
+    "id": "file.convert",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "成批转换图片格式（PNG/JPEG/WebP/TIFF/BMP/ICO）与文本字符集（GBK/UTF-8/UTF-16），带缩放、水印与进度取消"
+}

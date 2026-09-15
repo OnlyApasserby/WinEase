@@ -1,0 +1,9 @@
+{
+    "name": "编码转换",
+    "id": "dev.encoder",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "Base64 / URL 编解码与 MD5·SHA1·SHA256·SHA512 摘要，选中即算"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "窗口快速分屏",
+    "id": "window.snap_layout",
+    "version": "1.0.0",
+    "category": "window",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "一个快捷键把窗口摆到左半/右半/四象限/居中"
+}

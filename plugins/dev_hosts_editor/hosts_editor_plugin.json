@@ -1,0 +1,9 @@
+{
+    "name": "Hosts 快速编辑",
+    "id": "dev.hosts_editor",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "带语法高亮与行号校验的 hosts 编辑器：写前自动备份、可一键从历史备份还原、往返无损"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "剪贴板历史",
+    "id": "input.clipboard_history",
+    "version": "1.0.0",
+    "category": "input",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "记录剪贴板历史（搜索/收藏/分类），并识别「不记录」标记保护隐私"
+}

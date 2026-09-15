@@ -1,0 +1,9 @@
+{
+    "name": "媒体控制面板",
+    "id": "media.player_panel",
+    "version": "1.0.0",
+    "category": "media",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "播放/暂停、上一首/下一首、进度与封面；会话控制与系统媒体键分成两组"
+}

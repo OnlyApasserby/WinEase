@@ -1,0 +1,9 @@
+{
+    "name": "敏感文件粉碎",
+    "id": "security.file_shredder",
+    "version": "1.0.0",
+    "category": "security",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "多遍覆写 + 改名 + 永久删除 + 回读校验；系统目录与盘根一律拒绝，不提供撤销"
+}

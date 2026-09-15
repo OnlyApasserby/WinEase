@@ -1,0 +1,9 @@
+{
+    "name": "焦点高亮",
+    "id": "display.focus_highlight",
+    "version": "1.0.0",
+    "category": "display",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "跟着鼠标的聚光灯：整屏压暗、亮出光标周围一圈，讲解/录屏时观众一眼看到重点"
+}

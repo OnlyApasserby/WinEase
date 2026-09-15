@@ -1,0 +1,9 @@
+{
+    "name": "环境变量管理",
+    "id": "dev.env_manager",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "用户/系统环境变量与 PATH 可视化编辑：重复项与空条目一目了然、展开预览、导入导出"
+}

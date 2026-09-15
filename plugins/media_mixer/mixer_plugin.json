@@ -1,0 +1,9 @@
+{
+    "name": "音量混合器",
+    "id": "media.mixer",
+    "version": "1.0.0",
+    "category": "media",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "按应用单独调音量与静音；同一应用的多个会话一起调整"
+}

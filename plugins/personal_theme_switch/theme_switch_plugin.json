@@ -1,0 +1,9 @@
+{
+    "name": "系统主题切换",
+    "id": "personal.theme_switch",
+    "version": "1.0.0",
+    "category": "personal",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "一键切换 Windows 深色/浅色/自定义模式（含任务栏），改的是系统主题而不是 WinEase 界面"
+}

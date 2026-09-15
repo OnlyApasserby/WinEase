@@ -1,0 +1,9 @@
+{
+    "name": "网页快速搜索",
+    "id": "launcher.web_search",
+    "version": "1.0.0",
+    "category": "launcher",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "选中一段文字按快捷键，直接用搜索引擎打开；支持「别名: 关键词」前缀切换引擎"
+}

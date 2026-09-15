@@ -1,0 +1,9 @@
+{
+    "name": "端口占用查看",
+    "id": "dev.port_viewer",
+    "version": "1.0.0",
+    "category": "dev",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "查端口被哪个进程占用（含完整路径），并可直接结束占用进程"
+}

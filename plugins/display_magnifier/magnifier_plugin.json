@@ -1,0 +1,9 @@
+{
+    "name": "放大镜增强",
+    "id": "display.magnifier",
+    "version": "1.0.0",
+    "category": "display",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "跟随光标的原生放大窗（Magnification API）：倍率可调、矩形/圆角/圆形遮罩"
+}

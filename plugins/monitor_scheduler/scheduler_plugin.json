@@ -1,0 +1,9 @@
+{
+    "name": "定时任务",
+    "id": "monitor.scheduler",
+    "version": "1.0.0",
+    "category": "monitor",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "定时提醒 / 定时静音麦克风 / 定时电源操作（到点后仍可取消），休眠唤醒后错过的任务会补触发"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "窗口置顶",
+    "id": "window.always_on_top",
+    "version": "1.0.0",
+    "category": "window",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "把窗口钉在最前面，可跟随鼠标或锁定某个窗口"
+}

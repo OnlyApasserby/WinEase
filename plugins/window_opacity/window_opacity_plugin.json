@@ -1,0 +1,9 @@
+{
+    "name": "窗口透明度",
+    "id": "window.opacity",
+    "version": "1.0.0",
+    "category": "window",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "把窗口调到半透明，方便一边看参考资料一边操作"
+}

@@ -1,0 +1,9 @@
+{
+    "name": "硬件监控悬浮窗",
+    "id": "monitor.hardware_hud",
+    "version": "1.0.0",
+    "category": "monitor",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "桌面上常驻的小面板：CPU / 内存 / 网速 / GPU / 磁盘温度一眼可见，可拖动、可逐项开关"
+}

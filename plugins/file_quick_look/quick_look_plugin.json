@@ -1,0 +1,9 @@
+{
+    "name": "快速文件预览",
+    "id": "file.quick_look",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "在资源管理器里按空格看剪贴板文件的文本 / 图片 / PDF；文本只读头部，PDF 只渲染单页"
+}
