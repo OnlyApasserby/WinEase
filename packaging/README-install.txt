@@ -4,7 +4,13 @@
 
 【怎么装】
   双击 winease-setup-*-x64.exe 即可。
-  · 默认装到 %LOCALAPPDATA%\Programs\WinEase（当前用户），**不需要管理员权限**
+  · 默认装到 D:\WinEase —— 数据盘根目录普通用户就能建目录，**不需要管理员权限**
+  · 本机**没有可用的 D 盘**时，安装器会自动回退到 C:\Program Files\WinEase
+      （严格说是 %ProgramFiles%\WinEase；盘符不存在、未挂载、或 D 盘是光驱都算"不可用"）
+      ⚠ 系统目录只有管理员能写：这种情况请右键安装程序 →「以管理员身份运行」，
+        否则安装器会报「权限不足」并告诉你两种解决办法（提权运行 / 用 --dir 换目录）
+  · 想装到别处：winease-setup.exe --dir "E:\Tools\WinEase"
+  · 只看"本机会装到哪儿"（只读，什么都不装）：winease-setup.exe --default-dir
   · 装完会在开始菜单建一个快捷方式，并在「设置 → 应用 → 已安装的应用」里登记
   · 命令行：winease-setup.exe --dir <目录> [--launch] / --uninstall --dir <目录>
 

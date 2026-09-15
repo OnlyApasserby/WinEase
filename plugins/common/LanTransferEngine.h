@@ -68,6 +68,23 @@ QByteArray buildJsonResponse(int statusCode,
                              const QString &reasonPhrase,
                              const QByteArray &jsonBody);
 
+/// 组装 `204 No Content`（**不带 Content-Length / Content-Type / 响应体**）。
+///
+/// ★ 专给浏览器的"站点图标探测请求"用（`/favicon.ico` 等，见踩坑 #93）：
+///   这类请求是**浏览器自己发的**、与用户是否操作无关，回 404 会让手机页面的
+///   「访问失败」和"没这个地址"混在一起（面板日志里看上去像手机连不上）。
+///   RFC 7230 §3.3.2 规定 204 响应**不得**带 Content-Length，故单列一个构造函数，
+///   而不是复用 buildResponse(204, ...)。
+QByteArray buildNoContentResponse();
+
+/// 内联的站点图标（`data:image/svg+xml,...`，可直接写进 `<link rel="icon">`）。
+///
+/// ★ 写进页面 `<head>` 的目的是**从源头掐掉** `/favicon.ico` 请求：
+///   只要页面声明了图标，Chromium/WebKit 系浏览器就不会再去根路径探测（踩坑 #93）。
+///   SVG 以 percent-encoding 形式内联（不是 base64）：内容全是 ASCII、体积最小，
+///   也不需要为它多开一个路由。
+QString siteIconDataUri();
+
 // ---------------------------------------------------------------------------
 //  URL / MIME
 // ---------------------------------------------------------------------------

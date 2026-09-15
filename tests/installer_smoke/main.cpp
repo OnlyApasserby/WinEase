@@ -5,6 +5,9 @@
 //
 //    ① 前置：单文件安装程序存在（build/dist/WinEase-<ver>-x64-Setup.exe）
 //    ② **负载完整性**：`--verify` 解到临时目录后逐文件比对清单里的 SHA-256
+//    ②b **默认安装目录**：`--default-dir` 解析出的路径必须符合规则
+//       （首选 D:\WinEase；本机没有可用的 D 盘时回退 %ProgramFiles%\WinEase）——
+//       自检**独立地**再判一次"本机有没有可用的 D 盘"，不引用被测程序内部逻辑
 //    ③ **依赖是否带全（离线可用性）**：对负载里**每一个 PE 文件**做导入表审计 ——
 //       每条非系统导入都必须能在负载内或系统目录里找到。这一条是"目标机器无需
 //       额外配置即可运行"唯一的硬证据：缺 vcruntime140.dll / Qt6Core.dll /
@@ -347,6 +350,52 @@ int main(int argc, char **argv)
                        QStringLiteral("★ `--verify`：解到临时目录并**逐文件比对 SHA-256**，"
                                       "缺失 0 / 内容不符 0（负载没被截断或篡改）"),
                        QStringLiteral("退出码 %1；%2").arg(code).arg(output.right(160)));
+    }
+
+    // -----------------------------------------------------------------------
+    //  ②b 默认安装目录：D:\WinEase（首选） / %ProgramFiles%\WinEase（本机没有可用 D 盘）
+    //      ⚠ "有没有 D 盘"独立判一遍：看盘的**类型与可访问性**，不看盘符字母。
+    // -----------------------------------------------------------------------
+    {
+        QString output;
+        const int code = runProcess(setup, {QStringLiteral("--default-dir")}, &output, 60000);
+
+        const UINT driveType = ::GetDriveTypeW(L"D:\\");
+        const bool dUsable = driveType != DRIVE_NO_ROOT_DIR && driveType != DRIVE_UNKNOWN
+                             && driveType != DRIVE_CDROM
+                             && ::GetFileAttributesW(L"D:\\") != INVALID_FILE_ATTRIBUTES;
+        QString expected;
+        if (dUsable) {
+            expected = QStringLiteral("D:\\WinEase");
+        } else {
+            wchar_t buffer[MAX_PATH] = {0};
+            if (::GetEnvironmentVariableW(L"ProgramFiles", buffer, MAX_PATH) > 0) {
+                expected = QDir(QString::fromWCharArray(buffer))
+                               .absoluteFilePath(QStringLiteral("WinEase"));
+            }
+        }
+        expected = QDir::toNativeSeparators(expected);
+
+        const QString marker = QStringLiteral("[默认目录] ");
+        QString reported;
+        const int at = output.indexOf(marker);
+        if (at >= 0) {
+            const int begin = at + marker.size();
+            int end = output.indexOf(QLatin1Char('\n'), begin);
+            if (end < 0) {
+                end = output.size();
+            }
+            reported = QDir::toNativeSeparators(output.mid(begin, end - begin).trimmed());
+        }
+
+        reporter.check(code == 0 && !reported.isEmpty() && !expected.isEmpty()
+                           && QString::compare(reported, expected, Qt::CaseInsensitive) == 0,
+                       QStringLiteral("★ 默认安装目录符合规则：D 盘可用 → D:\\WinEase；"
+                                      "本机没有可用的 D 盘 → 回退 %ProgramFiles%\\WinEase"),
+                       QStringLiteral("本机 D 盘可用 = %1；安装程序报告 %2；期望 %3")
+                           .arg(dUsable ? QStringLiteral("是") : QStringLiteral("否"))
+                           .arg(reported)
+                           .arg(expected));
     }
 
     // -----------------------------------------------------------------------

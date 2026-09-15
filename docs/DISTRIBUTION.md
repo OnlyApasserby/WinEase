@@ -43,6 +43,16 @@ build\dist\WinEase-0.1.0-x64-Setup.manifest.txt     ← 逐文件 SHA-256（审�
 * **逐文件校验**：`--verify` 会把负载解到临时目录，按清单逐文件比对，然后清理（只读，不写注册表）；
 * **SFX 壳用 `/MT`**：安装器的职责之一是把 VC++ 运行库装到目标机上，它自己若依赖
   `msvcp140.dll` 就成了鸡生蛋（干净机器上双击没反应，用户无从下手）。
+* **默认安装目录：首选 `D:\WinEase`，本机没有可用的 D 盘时自动回退到 `%ProgramFiles%\WinEase`**
+  （正常机器上即 `C:\Program Files\WinEase`）。两条实现要点：
+  * "有没有 D 盘"的判据是**卷的类型与根目录可访问性**（`GetDriveTypeW` 排除
+    `DRIVE_NO_ROOT_DIR` / `DRIVE_UNKNOWN` / `DRIVE_CDROM`，再用 `GetFileAttributesW` 复核），
+    **不是盘符字母** —— 光驱盘符是"存在"的，往里装东西必然失败；
+  * 回退目标走 `FOLDERID_ProgramFiles`，**不硬编码 `C:\Program Files`** —— 系统盘换成别的
+    字母（或 Program Files 被重定向）时它才是对的。
+  * 代价是**回退路径需要管理员权限**（安装器本身不提权，见 §4.2）：权限不足时它在"建目录"
+    这一步就如实报 `ERROR_ACCESS_DENIED` 并给出两种解决办法，不会解出半个安装。
+  * 只读查看本机取值：`winease-setup.exe --default-dir`（不读负载、不装任何东西）。
 
 ---
 
@@ -82,8 +92,10 @@ build\dist\WinEase-0.1.0-x64-Setup.manifest.txt     ← 逐文件 SHA-256（审�
 
 * **没有代码签名**：SmartScreen 会对未知发布者告警（`README-install.txt` 里写明了怎么处理）。
   正式发布需要购买证书，属于仓库之外的运维决定。
-* 安装范围是 **当前用户**（`%LOCALAPPDATA%\Programs\WinEase` + HKCU 卸载项），
-  全程不需要管理员；需要管理员的功能仍走 `WinEaseHelper.exe`（用户主动触发时才提权）。
+* 安装范围：默认目录 `D:\WinEase`（数据盘根目录默认允许普通用户建目录，**不需要管理员**）、
+  卸载项写 HKCU；回退目录 `%ProgramFiles%\WinEase` 属于系统目录，**需要以管理员身份运行
+  安装程序**（安装器自身不提权，见 §2 的默认目录规则）。需要管理员的功能仍走
+  `WinEaseHelper.exe`（用户主动触发时才提权）。
 * 安装器**不注册 COM / 服务 / 驱动**：右键菜单等由插件在启用时自己写 HKCU，停用即清
   （卸载器只负责文件 + 卸载项 + 快捷方式）。
 * 明文 HTTP 的局域网传输等功能的边界，见 `README-install.txt` 与该插件帮助页。
@@ -103,8 +115,9 @@ HKCU 卸载项的这一条（`UninstallString`）：
 命令行手工调用也一样：
 
 ```powershell
-& "path\to\WinEase-0.1.0-x64-Setup.exe" --uninstall --dir "$env:LOCALAPPDATA\Programs\WinEase"
-# 装到临时目录时（自检/试装）就换成对应目录
+& "path\to\WinEase-0.1.0-x64-Setup.exe" --uninstall --dir "D:\WinEase"
+# 回退安装（本机没有 D 盘）时换成 "C:\Program Files\WinEase"；装到临时目录试装时换成对应目录
+# 忘了当初装到哪儿：--default-dir 打印的就是本机的默认目录
 ```
 
 卸载按 `install.manifest.txt` 删文件（**不去猜目录里有什么**），并回收
@@ -116,13 +129,14 @@ Qt 的 `platforms/ styles/ imageformats/ tls/ …` 空壳目录树、注册项�
 ## 6. 打包链路的自检与踩过的坑
 
 ```powershell
-.\build\bin\installer_smoke.exe        # 17 项断言，退出码 0 = 全过
+.\build\bin\installer_smoke.exe        # 18 项断言，退出码 0 = 全过
 ```
 
 它验的是"**用户拿到的那一个 exe**"：`--verify` 逐文件 SHA-256、**依赖审计**
 （把负载里每个 PE 的导入表都读出来，每条非系统导入都必须在负载内找得到 ——
-这是"目标机无需额外配置"唯一的硬证据）、安装/注册/卸载的**真实状态**（含 HKCU 卸载项、
-开始菜单快捷方式是否被删干净）、以及桥接自检。
+这是"目标机无需额外配置"唯一的硬证据）、**默认安装目录是否符合回退规则**
+（`--default-dir` 的输出 vs 自检自己判的"本机有没有可用 D 盘"，两边独立算，见 §2）、
+安装/注册/卸载的**真实状态**（含 HKCU 卸载项、开始菜单快捷方式是否被删干净）、以及桥接自检。
 
 踩过的坑（已进 `docs/traps.md`）：
 
@@ -141,4 +155,5 @@ Qt 的 `platforms/ styles/ imageformats/ tls/ …` 空壳目录树、注册项�
 
 | 日期 | 变更 |
 |---|---|
+| 2026-09-15 | **默认安装目录改为 `D:\WinEase`，并新增回退规则**（用户要求）：目标机没有可用的 D 盘时自动回退 `%ProgramFiles%\WinEase`。判据是卷类型 + 根目录可访问性（排除不存在 / 未知设备 / 光驱），回退目标取 `FOLDERID_ProgramFiles` 而非硬编码字符串。新增只读探测开关 `--default-dir`（自检据此断言，`installer_smoke` 17→18 项）；安装目录建不出来时**如实报权限不足并给出提权/`--dir` 两条出路**（踩坑 #94）。README、随包说明 `packaging/README-install.txt` 同步说明。 |
 | 2026-09-15 | 初版：`winease-setup`（SFX 壳）+ `scripts/stage_dist.ps1`（收集 Qt/VC/插件/桥接 → 清单 → CAB → 追加负载）+ `winease_installer` 目标 + `installer_smoke`（17 项）。结论：**默认框架依赖**（自包含 IJW 未走通，安装器改为主动检测 .NET 8 并如实说明影响面）；交付物 21.3 MB 单文件、121 个文件、离线可装。 |

@@ -4,11 +4,12 @@
 //  LanHttpServer —— 局域网文件传输的接收端（QTcpServer 上的极小 HTTP 服务）
 //
 //  它**不是**通用 Web 服务器，只做这几件事：
-//      GET  /                 → 手机友好的目录页（含上传表单）
+//      GET  /                 → 手机友好的目录页（含上传表单，页面自带内联图标）
 //      GET  /files/<相对路径>  → 下载分享目录里的文件（流式）
 //      GET  /api/list?path=   → 目录清单（JSON；给另一台 WinEase 用）
 //      POST /upload           → 手机浏览器上传（multipart/form-data，流式落盘）
 //      PUT  /api/put?name=    → 点对点发送（WinEase → WinEase，裸 body 流式落盘）
+//      GET  /favicon.ico 等   → **204**（浏览器自动探测站点图标，不能回 404，见踩坑 #93）
 //
 //  ★ 三条工程纪律：
 //      ① **流式**：上传/下载都不把整个文件读进内存（要能传几个 GB 的电影）；

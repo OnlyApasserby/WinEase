@@ -228,6 +228,30 @@ int runLanTransferGroupTests(Reporter &reporter,
                            && html.contains(QStringLiteral("报告.pdf"))
                            && html.contains(QStringLiteral("别关 WinEase")),
                        QStringLiteral("手机页面：带上传表单、列出文件、把提醒写在页面上"));
+
+        // ---- ★ 站点图标：页面必须自己声明，浏览器才不会去探测 /favicon.ico（踩坑 #93）----
+        const QString icon = LanTransfer::siteIconDataUri();
+        reporter.check(html.contains(QStringLiteral("<link rel=\"icon\" href=\"data:image/svg+xml,"))
+                           && html.contains(QStringLiteral("<link rel=\"apple-touch-icon\"")),
+                       QStringLiteral("★ 手机页面自己声明了图标（内联 data URI）→ "
+                                      "浏览器不再去请求 /favicon.ico"),
+                       icon.left(40));
+        reporter.check(icon.startsWith(QStringLiteral("data:image/svg+xml,"))
+                           && !icon.contains(QLatin1Char('#'))
+                           && !icon.contains(QLatin1Char('<'))
+                           && !icon.contains(QLatin1Char('"')),
+                       QStringLiteral("★ 图标 data URI：scheme 明文未编码、正文已 percent-encoding"
+                                      "（`#` / `<` / `\"` 都不许原样出现，否则会被 HTML 属性截断）"),
+                       icon.left(80));
+    }
+    {
+        const QByteArray noContent = LanTransfer::buildNoContentResponse();
+        reporter.check(noContent.startsWith("HTTP/1.1 204")
+                           && noContent.endsWith("\r\n\r\n")
+                           && !noContent.contains("Content-Length"),
+                       QStringLiteral("★ 204 响应：状态行正确、不带响应体、"
+                                      "**不带 Content-Length**（RFC 7230 对 204 的硬要求）"),
+                       QString::fromUtf8(noContent.left(60)).trimmed());
     }
 
     // =======================================================================
@@ -266,6 +290,36 @@ int runLanTransferGroupTests(Reporter &reporter,
                                && listing.contains("shared.txt")
                                && listing.contains("\"entries\""),
                            QStringLiteral("回环 GET /api/list：JSON 清单里有文件（给对端 WinEase 用）"));
+
+            // ---- 浏览器的站点图标探测：必须 204，绝不能是 404 错误页（踩坑 #93）----
+            bool probesOk = true;
+            QString probeDetail;
+            for (const QByteArray &target : {QByteArrayLiteral("/favicon.ico"),
+                                            QByteArrayLiteral("/apple-touch-icon.png"),
+                                            QByteArrayLiteral("/apple-touch-icon-precomposed.png")}) {
+                const QByteArray probe = get(port, target);
+                const bool ok = responseStatus(probe) == 204 && responseBody(probe).isEmpty()
+                                && !probe.contains(QStringLiteral("没有这个地址").toUtf8());
+                if (!ok) {
+                    probesOk = false;
+                    probeDetail += QStringLiteral("%1→%2 ")
+                                       .arg(QString::fromLatin1(target))
+                                       .arg(responseStatus(probe));
+                }
+            }
+            reporter.check(probesOk,
+                           QStringLiteral("★ 回环 GET /favicon.ico 与 apple-touch-icon*："
+                                          "一律 204 且**不是**「没有这个地址」错误页"
+                                          "（手机浏览器不会因此报错、面板日志不再出现假故障）"),
+                           probeDetail);
+
+            // ---- 反向对照：真的写错的路径仍然必须 404（不要为了消掉日志把 404 全改成 204）----
+            const QByteArray unknown = get(port, "/nope-not-a-route");
+            reporter.check(responseStatus(unknown) == 404
+                               && unknown.contains(QStringLiteral("没有这个地址").toUtf8()),
+                           QStringLiteral("反向对照：未知路径仍然 404 并如实说明（拦的是浏览器探测，"
+                                          "不是把错误处理一起关掉）"),
+                           QStringLiteral("状态 %1").arg(responseStatus(unknown)));
 
             // ---- 对端发送：PUT 裸 body（WinEase → WinEase 走的就是这条）----
             const QByteArray payload = "put-by-peer";

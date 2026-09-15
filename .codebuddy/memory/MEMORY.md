@@ -26,14 +26,16 @@ Windows 易用性增强工具集（C++20 + Qt 6.8.4 Widgets + CMake + **MSVC**�
 
 > **2026-09-15 状态（第四批追加）**：交付链打通 —— `cmake --build build --target winease_installer`
 > 出一条 **21.3 MB 单文件离线安装程序**（内含 Qt + VC++ 运行库 + 38 个插件 + 桥接），
-> 自检 `installer_smoke`（17 项，含**逐 PE 依赖审计**）。设计与实测边界见 `docs/DISTRIBUTION.md`；
+> 自检 `installer_smoke`（现 **18 项**，含**逐 PE 依赖审计**）。设计与实测边界见 `docs/DISTRIBUTION.md`；
 > ⚠ .NET 默认**不随包**（自包含 IJW 在原生宿主里 fail-fast 0xC0000409），安装器改为主动检测并说明。
+> ⚠ **安装程序默认目录 = `D:\WinEase`**（决策 D13）：没有可用 D 盘（不存在/未知设备/光驱）时回退
+> `%ProgramFiles%\WinEase`，**回退路径需管理员权限**；只读探测 `--default-dir`。
 >
 > **2026-09-15 状态**：P3 按用户要求裁剪为**已完成的 7 项**（P3-01/02/03/07/09/11/14）+
 > 新增 **F1 `file.batch_move`**（正则批量移动）与 **F2 `net.lan_transfer`**（局域网跨平台传输）；
 > 未完成的 9 项已**删除条目**。P3-07 的温度采集改走 **C++/CLI 桥接 LibreHardwareMonitor**
 > （`src/bridge/` 是全工程唯一允许 `/clr` 的目录），PawnIO 路线作废。
-| 已确认决策 D1~D12 | `.codebuddy/memories/decisions.md` |
+| 已确认决策 D1~D13 | `.codebuddy/memories/decisions.md` |
 | P3 技术预研 + 进度与下一步 | `.codebuddy/memories/p3-spike.md` |
 | 高频踩坑（触发式） | `.codebuddy/memories/traps.md` |
 | 文档约定（推进时必须回填） | `.codebuddy/memories/docs.md` |
@@ -45,6 +47,8 @@ Windows 易用性增强工具集（C++20 + Qt 6.8.4 Widgets + CMake + **MSVC**�
 
 | 任务 | 文件 |
 |---|---|
+| 局域网传输手机浏览器 favicon 假故障（踩坑 #93：图标路由 204 + 页面内联图标 + 日志文案） | `.codebuddy/memories/tasks/2026-09-15__lan-transfer-favicon-fix.md` |
+| 安装程序默认目录 `D:\WinEase` + 无 D 盘回退 `%ProgramFiles%\WinEase`（踩坑 #94 / `--default-dir`） | `.codebuddy/memories/tasks/2026-09-15__installer-default-dir.md` |
 | 单文件自解压安装程序（F3：`winease_installer` + `installer_smoke`） | `.codebuddy/memories/tasks/2026-09-15__packaging-installer.md` |
 | P3 裁剪 + P3-07 改 C++/CLI 桥接 + 两项新功能（F1 批量移动 / F2 局域网传输） | `.codebuddy/memories/tasks/2026-09-15__p3-prune-bridge-and-two-features.md` |
 | P3-11 `media.player_panel` 媒体控制面板交付 | `.codebuddy/memories/tasks/2026-09-15__p3-11-media-player-panel.md` |

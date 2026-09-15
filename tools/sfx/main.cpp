@@ -25,8 +25,10 @@
 //      msvcp140.dll 就成了鸡生蛋问题（干净机器上双击没反应，用户完全无从下手）。
 //
 //  【模式】
-//      （默认）      安装到 %LOCALAPPDATA%\Programs\WinEase（免管理员），
+//      （默认）      安装到 D:\WinEase；**本机没有可用的 D 盘时自动回退**到
+//                    %ProgramFiles%\WinEase（正常机器上即 C:\Program Files\WinEase），
 //                    写卸载注册表项 + 建开始菜单快捷方式；`--launch` 装完即启动
+//      --default-dir 只打印解析出来的默认安装目录（只读探测，不校验负载）
 //      --verify      解到临时目录 → 按清单逐文件校验 SHA-256 → 清掉临时目录
 //                    （**只读操作**，不写注册表、不建快捷方式，供自检使用）
 //      --selftest    校验桥接运行时是否真的能用：加载 WinEaseLiteMonitorBridge.dll
@@ -34,9 +36,12 @@
 //      --uninstall   按 <目录>\install.manifest.txt 删除文件与注册表项（可逆）
 //      --list        列出负载清单
 //      --silent      不打印进度细节（只打印结果）
-//      --dir <路径>  指定安装 / 卸载 / 自检目录
+//      --dir <路径>  指定安装 / 卸载 / 自检目录（一旦给了它，下面那套默认目录规则不生效）
 //
 //  ⚠ 安装器**不联网、不下载、不提权**：所有依赖都在负载里（见 docs/DISTRIBUTION.md）。
+//    正因如此，它**只在"安装目录自己能写"时才成功**：首选位置 D:\WinEase 的数据盘根目录
+//    默认允许普通用户建目录；一旦回退到 %ProgramFiles%，就必须由用户右键「以管理员身份
+//    运行」——这两种情况都必须把话说清楚，而不是报一句"解压失败"（见踩坑 #94）。
 // ============================================================================
 
 // WIN32_LEAN_AND_MEAN / NOMINMAX 由 CMakeLists.txt 统一定义（见本目录的说明）
@@ -816,22 +821,102 @@ bool detectDotNet8(std::wstring *version)
     return found;
 }
 
-std::wstring defaultInstallDirectory()
+// ---------------------------------------------------------------------------
+//  默认安装目录：首选 D:\WinEase，没有可用的 D 盘时回退 %ProgramFiles%\WinEase
+//
+//  ⚠ "有没有 D 盘"不能只看盘符字母，判据是**这个卷能不能往上写东西**：
+//    GetDriveTypeW 排除掉"盘符不存在 / 未知设备 / 光驱"（光驱的盘符是存在的，
+//    但往里装东西必然失败），再用 GetFileAttributesW 复核根目录确实可访问。
+//  ⚠ 回退目标取 FOLDERID_ProgramFiles 而**不是**硬编码 "C:\Program Files"：
+//    系统盘被改成别的盘符时（或 Program Files 被重定向时）它才是对的，
+//    硬编码字符串会指到一个根本不存在的路径。
+// ---------------------------------------------------------------------------
+
+/// 首选位置：D 盘根目录
+constexpr const wchar_t *kPreferredDriveRoot = L"D:\\";
+
+bool preferredDriveUsable()
+{
+    const UINT type = ::GetDriveTypeW(kPreferredDriveRoot);
+    if (type == DRIVE_NO_ROOT_DIR || type == DRIVE_UNKNOWN || type == DRIVE_CDROM) {
+        return false;
+    }
+    return ::GetFileAttributesW(kPreferredDriveRoot) != INVALID_FILE_ATTRIBUTES;
+}
+
+/// %ProgramFiles%（拿不到就返回空串；调用方如实报错，不猜）
+std::wstring programFilesDirectory()
 {
     PWSTR folder = nullptr;
-    if (::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &folder) != S_OK || folder == nullptr) {
-        return std::wstring();
+    if (::SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, nullptr, &folder) == S_OK
+        && folder != nullptr) {
+        std::wstring path = folder;
+        ::CoTaskMemFree(folder);
+        if (!path.empty()) {
+            return path;
+        }
     }
-    std::wstring path = folder;
-    ::CoTaskMemFree(folder);
-    // 装到 %LOCALAPPDATA%\Programs\WinEase：与"应用以普通权限运行"的定位一致，
-    // 全程不需要 UAC（提权助手 WinEaseHelper 只在用户主动用到需管理员的动作时才拉起）
-    return joinPath(joinPath(path, L"Programs"), kAppName);
+    wchar_t buffer[MAX_PATH] = {0};
+    if (::GetEnvironmentVariableW(L"ProgramFiles", buffer, MAX_PATH) > 0) {
+        return std::wstring(buffer);
+    }
+    wchar_t systemDrive[MAX_PATH] = {0};
+    if (::GetEnvironmentVariableW(L"SystemDrive", systemDrive, MAX_PATH) > 0) {
+        return joinPath(std::wstring(systemDrive) + L"\\", L"Program Files");
+    }
+    return std::wstring();
+}
+
+struct DefaultDirectory {
+    std::wstring path;             ///< 空 = 解析不出来（调用方必须如实报错）
+    bool         preferred = false;///< true = 用上了首选位置（D 盘）；false = 走了回退
+    std::string  source;           ///< 给用户看的一句话解释（为什么是这个目录）
+};
+
+DefaultDirectory resolveDefaultInstallDirectory()
+{
+    DefaultDirectory result;
+    if (preferredDriveUsable()) {
+        result.path = joinPath(kPreferredDriveRoot, kAppName);
+        result.preferred = true;
+        result.source = "首选位置：本机存在可用的 D 盘";
+        return result;
+    }
+
+    const std::wstring programFiles = programFilesDirectory();
+    if (!programFiles.empty()) {
+        result.path = joinPath(programFiles, kAppName);
+        result.preferred = false;
+        result.source = "回退位置：本机没有可用的 D 盘（不存在 / 未挂载 / 光驱），"
+                        "改用系统 Program Files";
+        return result;
+    }
+
+    result.source = "既没有可用的 D 盘，也拿不到 %ProgramFiles%";
+    return result;
 }
 
 int doInstall(const std::wstring &self, const SfxFooter &footer, const std::wstring &directory,
               bool silent, bool launch)
 {
+    // 先把安装目录建出来，失败原因要说具体：默认路径回退到 %ProgramFiles% 时，
+    // 普通权限下 CreateDirectory 直接 ERROR_ACCESS_DENIED，而解压层只会说一句
+    // "解压负载失败（错误码 5）"—— 用户读起来像"包坏了"，其实只是没提权（踩坑 #94）。
+    if (!ensureDirectory(directory)) {
+        // 再直接创建一次，只为拿到**这一层**真实的错误码
+        // （ensureDirectory 是递归的，它的 GetLastError 可能被中间层覆盖掉）
+        const DWORD code = ::CreateDirectoryW(directory.c_str(), nullptr)
+                               ? ERROR_ALREADY_EXISTS
+                               : ::GetLastError();
+        out("  [失败] 无法创建安装目录：%ls（错误码 %lu）\n", directory.c_str(),
+            static_cast<unsigned long>(code));
+        if (code == ERROR_ACCESS_DENIED) {
+            outLine("        这是**权限不足**：%ProgramFiles% 这类系统目录只有管理员能写。");
+        }
+        outLine("        解决办法：① 右键安装程序 →「以管理员身份运行」；"
+                "或 ② 用 --dir <目录> 指定一个当前用户可写的目录（例如 D:\\WinEase）。");
+        return 2;
+    }
     out("正在解压到 %ls …\n", directory.c_str());
     ExtractContext context;
     if (!extractTo(self, footer, directory, silent, &context)) {
@@ -1033,13 +1118,18 @@ void printUsage()
 {
     outLine("WinEase 自解压安装器");
     outLine("");
-    outLine("  winease-setup.exe                          安装到 %LOCALAPPDATA%\\Programs\\WinEase");
+    outLine("  winease-setup.exe                          默认安装目录（见下）");
+    outLine("  winease-setup.exe --default-dir            只打印解析出来的默认安装目录（只读探测）");
     outLine("  winease-setup.exe --dir <目录> [--launch]  指定安装目录，可选装完即启动");
     outLine("  winease-setup.exe --verify                 解到临时目录并按清单校验 SHA-256（只读）");
     outLine("  winease-setup.exe --selftest --dir <目录>  校验桥接与 .NET 运行库是否可用");
     outLine("  winease-setup.exe --list                   列出负载清单");
     outLine("  winease-setup.exe --uninstall --dir <目录> 卸载（删文件 + 注册项 + 快捷方式）");
     outLine("  --silent                                   安静模式（不逐文件打印）");
+    outLine("");
+    outLine("  默认安装目录：首选 D:\\WinEase；本机没有可用的 D 盘时**自动回退**到");
+    outLine("                %ProgramFiles%\\WinEase（即 C:\\Program Files\\WinEase）。");
+    outLine("                回退到系统目录时必须以管理员身份运行本安装程序。");
 }
 
 } // namespace
@@ -1054,6 +1144,7 @@ int wmain(int argc, wchar_t **argv)
     bool list = false;
     bool silent = false;
     bool launch = false;
+    bool showDefaultDirectory = false;
     std::wstring directory;
 
     for (int i = 1; i < argc; ++i) {
@@ -1062,6 +1153,8 @@ int wmain(int argc, wchar_t **argv)
             verify = true;
         } else if (argument == L"--selftest") {
             selfTest = true;
+        } else if (argument == L"--default-dir") {
+            showDefaultDirectory = true;
         } else if (argument == L"--uninstall") {
             uninstall = true;
         } else if (argument == L"--list") {
@@ -1080,6 +1173,22 @@ int wmain(int argc, wchar_t **argv)
             printUsage();
             return 1;
         }
+    }
+
+    // ---- 只读探测：--default-dir ----
+    // 刻意放在"读负载"之前：这一条只回答"这台机器上默认会装到哪儿"，与负载内容无关
+    // （自检可以直接问它，不需要先有安装包）。
+    if (showDefaultDirectory) {
+        const DefaultDirectory resolved = resolveDefaultInstallDirectory();
+        if (resolved.path.empty()) {
+            outLine("[默认目录] （解析失败）");
+            out("  [失败] %s\n", resolved.source.c_str());
+            return 1;
+        }
+        out("[默认目录] %ls\n", resolved.path.c_str());
+        out("[来源] %s\n", resolved.source.c_str());
+        out("[首选] %s\n", resolved.preferred ? "是（D:\\WinEase）" : "否（回退到系统 Program Files）");
+        return 0;
     }
 
     const std::wstring self = exePath();
@@ -1152,21 +1261,23 @@ int wmain(int argc, wchar_t **argv)
         return code;
     }
 
-    // ---- 自检：证明桥接运行时可用 ----
-    if (selfTest) {
-        if (directory.empty()) {
-            directory = defaultInstallDirectory();
-        }
-        out("桥接自检目录：%ls\n", directory.c_str());
-        return doSelfTest(directory);
-    }
-
+    // ---- 目标目录：没有 --dir 就用默认目录（D:\WinEase，回退 %ProgramFiles%\WinEase）----
     if (directory.empty()) {
-        directory = defaultInstallDirectory();
-        if (directory.empty()) {
-            outLine("[错误] 取不到默认安装目录（%LOCALAPPDATA% 不可用）");
+        const DefaultDirectory resolved = resolveDefaultInstallDirectory();
+        if (resolved.path.empty()) {
+            out("[错误] 取不到默认安装目录：%s\n", resolved.source.c_str());
+            outLine("       请用 --dir <目录> 显式指定安装目录。");
             return 1;
         }
+        directory = resolved.path;
+        out("[目录] 未指定 --dir，使用默认安装目录：%ls（%s）\n", directory.c_str(),
+            resolved.source.c_str());
+    }
+
+    // ---- 自检：证明桥接运行时可用 ----
+    if (selfTest) {
+        out("桥接自检目录：%ls\n", directory.c_str());
+        return doSelfTest(directory);
     }
 
     if (uninstall) {

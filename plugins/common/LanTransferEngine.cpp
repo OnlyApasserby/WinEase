@@ -91,6 +91,17 @@ QString entryUrl(const QString &relativePath, bool asDirectory)
     return urlEncode(path);
 }
 
+/// 站点图标的 SVG 源（**全 ASCII、单引号属性**，见 siteIconDataUri 的说明）。
+///
+/// ⚠ 这里写成单引号 `'` 而不是双引号：它最终要塞进 HTML 属性的
+///   `href="..."` 里，双引号会提前把属性闭合掉。
+const char kSiteIconSvg[] =
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+    "<rect width='64' height='64' rx='14' fill='#8ab4f8'/>"
+    "<text x='32' y='45' text-anchor='middle' font-family='sans-serif'"
+    " font-size='34' font-weight='700' fill='#14161a'>W</text>"
+    "</svg>";
+
 } // namespace
 
 // ============================================================================
@@ -234,6 +245,17 @@ QByteArray buildJsonResponse(int statusCode, const QString &reasonPhrase, const 
 {
     return buildResponse(statusCode, reasonPhrase,
                          QStringLiteral("application/json; charset=utf-8"), jsonBody);
+}
+
+QByteArray buildNoContentResponse()
+{
+    // 204 **不能**带 Content-Length（RFC 7230 §3.3.2），所以不复用 buildResponse/buildHeadOnlyResponse
+    QByteArray head;
+    head += "HTTP/1.1 204 " + reasonFor(204).toUtf8() + kCrLf;
+    head += "Cache-Control: no-store" + kCrLf;
+    head += "Connection: close" + kCrLf;
+    head += kCrLf;
+    return head;
 }
 
 // ============================================================================
@@ -422,6 +444,16 @@ QString uniqueFileName(const QString &directory, const QString &fileName)
     return QStringLiteral("%1-%2").arg(base).arg(QDateTime::currentMSecsSinceEpoch());
 }
 
+QString siteIconDataUri()
+{
+    // ⚠ 只对 SVG 正文做 percent-encoding：`data:image/svg+xml,` 这个 scheme 前缀
+    //   绝不能被编码（编码后变成 `data%3A...`，浏览器直接当无效 URL 忽略）。
+    static const QString uri =
+        QStringLiteral("data:image/svg+xml,")
+        + QString::fromLatin1(QUrl::toPercentEncoding(QString::fromLatin1(kSiteIconSvg)));
+    return uri;
+}
+
 QString buildListingPage(const QString &deviceName,
                          const QString &currentRelativePath,
                          const QList<ShareEntry> &entries,
@@ -431,7 +463,15 @@ QString buildListingPage(const QString &deviceName,
     html += QStringLiteral(
         "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        "<title>WinEase 文件传输</title><style>"
+        "<title>WinEase 文件传输</title>");
+    // ★ 在这里**声明**站点图标（内联 data URI，零额外请求）：
+    //   只要页面自己声明了图标，浏览器就不会再去请求 `/favicon.ico`（踩坑 #93）。
+    //   apple-touch-icon 一并声明，iOS Safari / 国产浏览器"添加到桌面/书签"时也不会另发请求。
+    html += QStringLiteral("<link rel=\"icon\" href=\"%1\">"
+                           "<link rel=\"apple-touch-icon\" href=\"%1\">")
+                .arg(siteIconDataUri());
+    html += QStringLiteral(
+        "<style>"
         "body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;margin:0;padding:16px;"
         "background:#14161a;color:#e8eaed}"
         "h1{font-size:18px;margin:0 0 4px}"

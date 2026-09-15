@@ -43,6 +43,18 @@ QString peerText(QTcpSocket *socket)
     return QStringLiteral("%1:%2").arg(normalized).arg(socket->peerPort());
 }
 
+/// 浏览器自己会发的"站点图标探测请求"（与用户操作无关）。
+///
+/// ⚠ 这些路径**不是**用户想访问的地址：`/favicon.ico` 是浏览器渲染任何页面之后
+///   自动补发的（页面没声明图标时的约定回落路径），iOS/Safari 与部分国产浏览器
+///   还会额外探测 `/apple-touch-icon*.png`。见踩坑 #93。
+bool isIconProbePath(const QString &path)
+{
+    return path == QLatin1String("/favicon.ico")
+        || path == QLatin1String("/apple-touch-icon.png")
+        || path == QLatin1String("/apple-touch-icon-precomposed.png");
+}
+
 } // namespace
 
 // ============================================================================
@@ -205,8 +217,12 @@ void LanHttpConnection::sendResponse(const QByteArray &response)
 void LanHttpConnection::replyError(int status, const QString &title, const QString &detail)
 {
     if (m_server != nullptr) {
-        Q_EMIT m_server->logMessage(QStringLiteral("%1：%2（%3）")
-                                        .arg(peerText(m_socket), title, detail));
+        // ⚠ 这里的地址是**对端**（手机）的地址与临时端口，不是本服务的访问地址。
+        //   必须写成"来自 …的请求"，否则 `192.168.21.5:43480：没有这个地址` 会被
+        //   读成"要访问的地址不存在"（用户视角的假故障，见踩坑 #93）。
+        Q_EMIT m_server->logMessage(QStringLiteral("来自 %1 的请求（%2）：%3")
+                                        .arg(peerText(m_socket), QString::number(status), title));
+        Q_EMIT m_server->logMessage(detail);
     }
     const QString page = LanTransfer::buildErrorPage(title, detail);
     sendResponse(LanTransfer::buildResponse(status, QString(), QStringLiteral("text/html; charset=utf-8"),
@@ -306,6 +322,14 @@ void LanHttpConnection::routeRequest(const HttpRequest &request)
     }
     if (request.method == QLatin1String("PUT") && path == QLatin1String("/api/put")) {
         beginRawUpload(request);
+        return;
+    }
+    // ★ 浏览器的站点图标探测：回 204（"这里没有图标"）而**不是** 404 错误页。
+    //   回 404 时手机上看不出问题，但 WinEase 面板的「传输记录」会多出一行
+    //   "…：没有这个地址（GET /favicon.ico …）"，很容易被误读成"手机连不上"（踩坑 #93）。
+    //   正常路径不该走到这里：页面已经声明了内联图标，多数浏览器根本不会发这个请求。
+    if ((isGet || isHead) && isIconProbePath(path)) {
+        sendResponse(LanTransfer::buildNoContentResponse());
         return;
     }
 
