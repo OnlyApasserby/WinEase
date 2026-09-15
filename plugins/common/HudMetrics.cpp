@@ -2,6 +2,8 @@
 
 #include <QtGlobal>
 
+#include <climits>
+
 namespace WinEase::FeaturePlugins::Hud {
 
 namespace {
@@ -94,23 +96,133 @@ QString formatTemperature(double celsius)
 //  不可用文案
 // ============================================================================
 
+QString bridgeUnavailableText()
+{
+    return QStringLiteral("桥接组件不可用");
+}
+
 QString cpuTempUnavailableText()
 {
-    // 措辞与 docs/ROADMAP-P3.md 的 P3-07 第二里程碑保持一致：
-    // 未安装 PawnIOLib.dll 时**不许显示 0°C 或留空**，必须把"缺什么"说清楚
-    return QStringLiteral("需要 PawnIOLib.dll（本机缺失）");
+    // 桥接层整个没装上时用它。措辞纪律不变：**不许显示 0°C 或留空**，
+    // 必须把"缺什么"说清楚（自检会断言非空）
+    return QStringLiteral("需要 C++/CLI 桥接组件");
+}
+
+QString cpuTempNoReadingText()
+{
+    return QStringLiteral("无读数（需要管理员权限）");
 }
 
 QString cpuTempTooltipText()
 {
     return QStringLiteral(
-               "CPU / 主板温度需要 PawnIO 驱动 + 用户态 PawnIOLib.dll（走提权助手加载）。\n"
-               "本机已安装 PawnIO 驱动（设备 \\\\.\\PawnIO 存在），但缺 PawnIOLib.dll，"
-               "因此本行暂时读不到数值。\n"
-               "获取指引：从 PawnIO 官方仓库（github.com/namazso/PawnIO）下载发行包，"
-               "把 PawnIOLib.dll 放到 WinEase.exe 同目录即可，无需重启。\n"
-               "该能力属于 P3-07 第二里程碑，届时温度区会自动变成真实读数。\n"
-               "磁盘温度不受此影响——它走 IOCTL_STORAGE_QUERY_PROPERTY，零依赖。");
+               "CPU / 主板 / 风扇转速来自 C++/CLI 桥接程序集（WinEaseLiteMonitorBridge.dll），\n"
+               "它直接调用 LibreHardwareMonitorLib —— 与 refrences/LiteMonitor 同一个硬件库。\n"
+               "\n"
+               "读数前提：LibreHardwareMonitor 要经过内核驱动读 CPU 的 MSR / 主板 SuperIO，\n"
+               "因此**多数机器需要以管理员身份运行 WinEase** 才能拿到 CPU 封装温度与风扇转速；\n"
+               "GPU 温度不走这条路（NVIDIA / AMD 的用户态接口），普通权限即可读到。\n"
+               "\n"
+               "拿到不读数时本行会如实写明原因，绝不显示 0°C。\n"
+               "磁盘温度不受影响 —— 它走 IOCTL_STORAGE_QUERY_PROPERTY，零依赖零提权。");
+}
+
+QString gpuTempUnavailableText()
+{
+    return QStringLiteral("GPU 温度不可用");
+}
+
+QString boardTempUnavailableText()
+{
+    return QStringLiteral("主板温度不可用");
+}
+
+QString fanUnavailableText()
+{
+    return QStringLiteral("风扇转速不可用");
+}
+
+namespace {
+
+/// 名称优先级打分：命中 nameCandidates 越靠前分越小（返回 -1 = 不在候选里）
+int nameRank(const QString &name, const QStringList &nameCandidates)
+{
+    if (nameCandidates.isEmpty()) {
+        return 0;
+    }
+    for (int i = 0; i < nameCandidates.size(); ++i) {
+        if (name.compare(nameCandidates.at(i), Qt::CaseInsensitive) == 0) {
+            return i;
+        }
+    }
+    for (int i = 0; i < nameCandidates.size(); ++i) {
+        if (name.contains(nameCandidates.at(i), Qt::CaseInsensitive)) {
+            return nameCandidates.size() + i;
+        }
+    }
+    return -1;
+}
+
+/// 桥接层来源的指标（GPU 温度 / 主板温度 / 风扇）不可用时的统一口径。
+/// 三种情况必须区分开，否则用户不知道自己是"没装组件"还是"权限不够"：
+///   ① 有探头没读数 → 权限问题（写"无读数（需要管理员权限）"）
+///   ② 桥接在跑、但没有这类探头 → 这台机器本来就没有（用传入的默认文案）
+///   ③ 桥接不可用 → 说清缺哪个组件
+QString bridgeMetricUnavailableText(const MetricInput &input, const BridgeSensor *sensor,
+                                    const QString &fallback)
+{
+    if (sensor != nullptr) {
+        return cpuTempNoReadingText();
+    }
+    if (input.bridgeAvailable) {
+        return fallback;
+    }
+    return unavailableText(input.bridgeError, fallback);
+}
+
+} // namespace
+
+const BridgeSensor *pickSensor(const QList<BridgeSensor> &sensors, SensorKind kind,
+                               const QString &identifierHint, const QStringList &nameCandidates)
+{
+    const BridgeSensor *bestWithValue = nullptr;
+    int bestRank = INT_MAX;
+    const BridgeSensor *firstMatch = nullptr;
+
+    for (const BridgeSensor &sensor : sensors) {
+        if (sensor.kind != kind) {
+            continue;
+        }
+        if (!identifierHint.isEmpty()
+            && !sensor.identifier.contains(identifierHint, Qt::CaseInsensitive)) {
+            continue;
+        }
+        if (firstMatch == nullptr) {
+            firstMatch = &sensor;
+        }
+        if (!sensor.hasValue) {
+            continue;
+        }
+        const int rank = nameRank(sensor.name, nameCandidates);
+        if (rank < 0) {
+            // 名称不在候选里：只在"没有更合适的"时用它
+            if (bestWithValue == nullptr) {
+                bestWithValue = &sensor;
+                bestRank = INT_MAX;
+            }
+            continue;
+        }
+        if (rank < bestRank) {
+            bestRank = rank;
+            bestWithValue = &sensor;
+        }
+    }
+
+    if (bestWithValue != nullptr) {
+        return bestWithValue;
+    }
+    // 有探头但没读数：把第一个匹配项交回去，让面板写"无读数（需要管理员权限）"
+    return firstMatch;
 }
 
 QString unavailableText(const QString &error, const QString &fallback)
@@ -241,14 +353,103 @@ HudSnapshot buildSnapshot(const MetricInput &input, const MetricOptions &options
                       valueText, tooltip);
     }
 
-    // ---- 温度区：CPU 温度（本批固定不可用，第二里程碑接 PawnIO）----
+    // ---- 温度区：CPU 温度（C++/CLI 桥接 + LibreHardwareMonitor）----
+    //
+    // 取值优先级：
+    //   ① input.cpuTempValid —— 由插件预先填好的读数（将来若再接别的通道，这里不用改）
+    //   ② 桥接层里标识符含 "cpu" 的温度传感器（"CPU Package" > "Core Average" > "Core Max"）
+    //   ③ 都没有 → **如实写原因**：
+    //        - 桥接层不可用 → 说清"缺哪个组件"
+    //        - 桥接层在跑但没值 → "无读数（需要管理员权限）"
     if (options.temperature) {
-        appendReading(snapshot, MetricKind::CpuTemp, QStringLiteral("CPU 温度"),
-                      input.cpuTempValid,
-                      input.cpuTempValid ? formatTemperature(input.cpuTempCelsius)
-                                         : unavailableText(input.cpuTempError,
-                                                           cpuTempUnavailableText()),
-                      cpuTempTooltipText());
+        bool available = input.cpuTempValid;
+        double celsius = input.cpuTempCelsius;
+        QString valueText;
+        QString tooltip = cpuTempTooltipText();
+
+        if (!available) {
+            const BridgeSensor *cpuTemp = pickSensor(input.bridgeSensors, SensorKind::Temperature,
+                                                     QStringLiteral("cpu"),
+                                                     {QStringLiteral("CPU Package"),
+                                                      QStringLiteral("Core Average"),
+                                                      QStringLiteral("Core Max"),
+                                                      QStringLiteral("CPU")});
+            if (cpuTemp != nullptr && cpuTemp->hasValue) {
+                available = true;
+                celsius = cpuTemp->value;
+                tooltip = QStringLiteral("%1 · %2\n%3")
+                              .arg(cpuTemp->hardware, cpuTemp->name, tooltip);
+            } else if (cpuTemp != nullptr) {
+                valueText = cpuTempNoReadingText();
+                tooltip = QStringLiteral("硬件库列出了温度探头（%1 · %2），但这次没给读数。\n\n%3")
+                              .arg(cpuTemp->hardware, cpuTemp->name, tooltip);
+            } else if (input.bridgeAvailable) {
+                valueText = unavailableText(input.cpuTempError, cpuTempNoReadingText());
+            } else {
+                valueText = unavailableText(
+                    input.cpuTempError.isEmpty() ? input.bridgeError : input.cpuTempError,
+                    cpuTempUnavailableText());
+            }
+        }
+
+        appendReading(snapshot, MetricKind::CpuTemp, QStringLiteral("CPU 温度"), available,
+                      available ? formatTemperature(celsius) : valueText, tooltip);
+    }
+
+    // ---- 温度区：GPU 温度（桥接层；厂商用户态接口，通常不需要管理员）----
+    if (options.gpuTemp) {
+        const BridgeSensor *gpuTemp = pickSensor(input.bridgeSensors, SensorKind::Temperature,
+                                                 QStringLiteral("gpu"),
+                                                 {QStringLiteral("GPU Core"),
+                                                  QStringLiteral("GPU Hot Spot"),
+                                                  QStringLiteral("GPU")});
+        const QString tooltip =
+            QStringLiteral("GPU 温度来自 C++/CLI 桥接层（LibreHardwareMonitorLib）。\n"
+                           "NVIDIA / AMD 的用户态接口即可读取，一般不需要管理员权限。\n"
+                           "取 \"GPU Core\" 优先，其次 \"GPU Hot Spot\"（结温）。");
+        appendReading(snapshot, MetricKind::GpuTemp, QStringLiteral("GPU 温度"),
+                      gpuTemp != nullptr && gpuTemp->hasValue,
+                      (gpuTemp != nullptr && gpuTemp->hasValue)
+                          ? formatTemperature(gpuTemp->value)
+                          : bridgeMetricUnavailableText(input, gpuTemp, gpuTempUnavailableText()),
+                      tooltip);
+    }
+
+    // ---- 温度区：主板温度（桥接层 SuperIO / 主板传感器；通常需要管理员）----
+    if (options.boardTemp) {
+        const BridgeSensor *boardTemp =
+            pickSensor(input.bridgeSensors, SensorKind::Temperature, QStringLiteral("mainboard"),
+                       {QStringLiteral("Temperature")});
+        if (boardTemp == nullptr) {
+            boardTemp = pickSensor(input.bridgeSensors, SensorKind::Temperature,
+                                   QStringLiteral("superio"));
+        }
+        const QString tooltip =
+            QStringLiteral("主板温度来自 C++/CLI 桥接层（LibreHardwareMonitorLib 的 SuperIO"
+                           "访问）。\n"
+                           "与 CPU 温度同理，多数机器需要以管理员身份运行才能读到。");
+        appendReading(snapshot, MetricKind::BoardTemp, QStringLiteral("主板温度"),
+                      boardTemp != nullptr && boardTemp->hasValue,
+                      (boardTemp != nullptr && boardTemp->hasValue)
+                          ? formatTemperature(boardTemp->value)
+                          : bridgeMetricUnavailableText(input, boardTemp,
+                                                        boardTempUnavailableText()),
+                      tooltip);
+    }
+
+    // ---- 风扇转速（桥接层；取读得出来的第一个）----
+    if (options.fan) {
+        const BridgeSensor *fan = pickSensor(input.bridgeSensors, SensorKind::Fan, QString());
+        const QString tooltip =
+            QStringLiteral("风扇转速来自 C++/CLI 桥接层（LibreHardwareMonitorLib）。\n"
+                           "台式机主板风扇需要 SuperIO 访问（多数需管理员），"
+                           "笔记本 / 显卡的风扇往往读不到 —— 此时本行如实写原因。");
+        appendReading(snapshot, MetricKind::Fan, QStringLiteral("风扇"),
+                      fan != nullptr && fan->hasValue,
+                      (fan != nullptr && fan->hasValue)
+                          ? QStringLiteral("%1 RPM").arg(qRound(fan->value))
+                          : bridgeMetricUnavailableText(input, fan, fanUnavailableText()),
+                      tooltip);
     }
 
     return snapshot;

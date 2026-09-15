@@ -47,6 +47,10 @@ qt_add_executable(feature_smoke
     mixer_group.cpp
     player_group.h
     player_group.cpp
+    batch_move_group.h
+    batch_move_group.cpp
+    lan_transfer_group.h
+    lan_transfer_group.cpp
 
     # 插件间的共享实现：自检用的是**同一份源码**（不是"照着再写一遍"），
     # 这样"文本转换是否正确"这类断言才有意义（见 plugins/common/TextTools.h 的说明）
@@ -98,6 +102,15 @@ qt_add_executable(feature_smoke
     # 自检若照抄一份实现，验的就只是"抄得对不对"
     "${CMAKE_SOURCE_DIR}/plugins/common/HudMetrics.h"
     "${CMAKE_SOURCE_DIR}/plugins/common/HudMetrics.cpp"
+
+    # 新增：批量移动（正则）与局域网传输的引擎
+    #   BatchMoveEngine  → 计划/预演/撤销都长在这里，"预演不动盘"必须与落盘共用同一份 Plan
+    #   LanTransferEngine→ HTTP 解析与**目录穿越拦截**长在这里，
+    #                      自检用构造数据反复捶（这类安全边界不能只靠真手机试）
+    "${CMAKE_SOURCE_DIR}/plugins/common/BatchMoveEngine.h"
+    "${CMAKE_SOURCE_DIR}/plugins/common/BatchMoveEngine.cpp"
+    "${CMAKE_SOURCE_DIR}/plugins/common/LanTransferEngine.h"
+    "${CMAKE_SOURCE_DIR}/plugins/common/LanTransferEngine.cpp"
 
     # P3-09 音量混合器：聚合模型（一个进程多份会话合一行 / 代表音量 / 过期隐藏）
     # 同样走"同一份源码" —— "按应用调音量必须覆盖该进程全部会话"这条判断
@@ -157,6 +170,7 @@ target_link_libraries(feature_smoke PRIVATE
     Qt6::Core
     Qt6::Gui          # QIcon / QKeySequence / QScreen
     Qt6::Widgets      # QApplication（插件元信息探针与设置面板都需要）
+    Qt6::Network      # 局域网传输组要用 QTcpSocket 打回环请求（127.0.0.1，不碰真实局域网）
 )
 
 if (WIN32)

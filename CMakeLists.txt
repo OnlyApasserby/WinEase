@@ -131,6 +131,11 @@ include(WinEasePlugin)
 add_subdirectory(src)
 add_subdirectory(plugins)
 add_subdirectory(tests)
+add_subdirectory(tools)   # winease-setup：自解压安装器 SFX 壳（静态 CRT，不依赖 Qt）
+
+# 打包编排（winease_installer / winease_dist_stage）必须在**所有插件目标登记之后**
+# 引入：它要依赖 WINEASE_PLUGIN_TARGETS 才能保证"插件没编完就不打包"。
+include(WinEaseDist)
 
 message(STATUS "-----------------------------------------------------------")
 message(STATUS " WinEase ${PROJECT_VERSION}")

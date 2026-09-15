@@ -1,0 +1,14 @@
+F:\develop\1919810\build\_bridge_managed\WinEase.LiteMonitorDeps.dll
+F:\develop\1919810\build\_bridge_managed\WinEase.LiteMonitorDeps.deps.json
+F:\develop\1919810\build\_bridge_managed\BlackSharp.Core.dll
+F:\develop\1919810\build\_bridge_managed\DiskInfoToolkit.dll
+F:\develop\1919810\build\_bridge_managed\HidSharp.dll
+F:\develop\1919810\build\_bridge_managed\LibreHardwareMonitorLib.dll
+F:\develop\1919810\build\_bridge_managed\Mono.Posix.NETStandard.dll
+F:\develop\1919810\build\_bridge_managed\RAMSPDToolkit-NDD.dll
+F:\develop\1919810\build\_bridge_managed\System.CodeDom.dll
+F:\develop\1919810\build\_bridge_managed\System.IO.Ports.dll
+F:\develop\1919810\build\_bridge_managed\System.Management.dll
+F:\develop\1919810\build\_bridge_managed\System.Threading.AccessControl.dll
+F:\develop\1919810\build\_bridge_managed\MonoPosixHelper.dll
+F:\develop\1919810\build\_bridge_managed\libMonoPosixHelper.dll

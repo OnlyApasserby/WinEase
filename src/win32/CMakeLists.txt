@@ -38,6 +38,7 @@ qt_add_library(WinEaseWin32 STATIC
     VirtualDesktop.h    VirtualDesktop.cpp # 虚拟桌面查询/搬迁（P3-01；公开接口 IVirtualDesktopManager）
     Magnifier.h         Magnifier.cpp   # 原生放大镜窗口（Magnification API，P2-09）
     WinRtSupport.h      WinRtSupport.cpp
+    LiteMonitorBridge.h LiteMonitorBridge.cpp # C++/CLI 桥接（P3-07；动态加载，模块缺失也不影响构建）
 )
 
 target_include_directories(WinEaseWin32

@@ -16,8 +16,9 @@
 //       · ★ 面板上的读数来自**本机真实硬件**：内存一行必须带
 //         "总量 > 0 且已用 ≤ 总量"的真实量级（这恰恰是"0 占位"过不去的断言），
 //         磁盘温度一行要么是 0~120 °C 的合理值、要么是**非空的不可用原因**；
-//       · ★ CPU 温度必须**如实报"需要 PawnIOLib.dll"**，不得显示 0°C/空白
-//         （第二里程碑接上 PawnIO 后本组会随之改成"必须有真实读数"）；
+//       · ★ 温度类指标来自 **C++/CLI 桥接（LibreHardwareMonitor）**：要么是真实读数，
+//         要么是**非空的具体原因**（"无读数（需要管理员权限）" / "桥接组件不可用"），
+//         不得显示 0°C/空白，也不得再出现旧的 PawnIOLib.dll 口径；
 //       · 逐项开关当场改变面板行数（窗口高度跟着变，不是只在配置里改）；
 //       · 位置持久化（禁用→再启用回到同一处）、复位到默认位置、
 //         可拖拽 / 穿透切换、停用后**不留置顶窗口**。
@@ -52,8 +53,10 @@ namespace FeatureSmoke {
 
 namespace {
 
+using WinEase::FeaturePlugins::Hud::BridgeSensor;
 using WinEase::FeaturePlugins::Hud::HudSnapshot;
 using WinEase::FeaturePlugins::Hud::MetricInput;
+using WinEase::FeaturePlugins::Hud::SensorKind;
 using WinEase::FeaturePlugins::Hud::MetricKind;
 using WinEase::FeaturePlugins::Hud::MetricOptions;
 using WinEase::FeaturePlugins::Hud::MetricReading;
@@ -68,6 +71,9 @@ const QString kMemoryCheck = QStringLiteral("hudMemoryCheck");
 const QString kNetworkCheck = QStringLiteral("hudNetworkCheck");
 const QString kGpuCheck = QStringLiteral("hudGpuCheck");
 const QString kTemperatureCheck = QStringLiteral("hudTemperatureCheck");
+const QString kGpuTempCheck = QStringLiteral("hudGpuTempCheck");
+const QString kBoardTempCheck = QStringLiteral("hudBoardTempCheck");
+const QString kFanCheck = QStringLiteral("hudFanCheck");
 const QString kIntervalSpin = QStringLiteral("hudIntervalSpin");
 const QString kInteractiveCheck = QStringLiteral("hudInteractiveCheck");
 const QString kResetButton = QStringLiteral("hudResetPositionButton");
@@ -328,7 +334,48 @@ MetricInput availableInput()
     input.cpuTempValid = true;
     input.cpuTempCelsius = 55.0;
 
+    // ---- 桥接层（C++/CLI + LibreHardwareMonitor）给的传感器 ----
+    // 这里**构造数据**而不是去读真硬件：自检要验的是"选谁、怎么显示"，
+    // 真硬件读不读得到受权限/机型影响，不能拿它当断言前提。
+    input.bridgeAvailable = true;
+    input.bridgeSensors = {
+        {QStringLiteral("WinEase 自检 CPU"), QStringLiteral("Core Average"),
+         QStringLiteral("/intelcpu/0/temperature/1"), SensorKind::Temperature, true, 52.0},
+        {QStringLiteral("WinEase 自检 GPU"), QStringLiteral("GPU Core"),
+         QStringLiteral("/nvidiagpu/0/temperature/0"), SensorKind::Temperature, true, 43.0},
+        {QStringLiteral("WinEase 自检主板"), QStringLiteral("Temperature #1"),
+         QStringLiteral("/mainboard/0/temperature/0"), SensorKind::Temperature, true, 34.0},
+        {QStringLiteral("WinEase 自检主板"), QStringLiteral("CPU Fan"),
+         QStringLiteral("/lpc/nct6798d/0/fan/0"), SensorKind::Fan, true, 1240.0},
+    };
+
     return input;
+}
+
+/// 面板行首名称（自检里按它从面板文本里取值）
+QString panelLabelOf(MetricKind kind)
+{
+    switch (kind) {
+    case MetricKind::Cpu:
+        return QStringLiteral("CPU");
+    case MetricKind::Memory:
+        return QStringLiteral("内存");
+    case MetricKind::Network:
+        return QStringLiteral("网速");
+    case MetricKind::Gpu:
+        return QStringLiteral("GPU");
+    case MetricKind::DiskTemp:
+        return QStringLiteral("磁盘温度");
+    case MetricKind::CpuTemp:
+        return QStringLiteral("CPU 温度");
+    case MetricKind::GpuTemp:
+        return QStringLiteral("GPU 温度");
+    case MetricKind::BoardTemp:
+        return QStringLiteral("主板温度");
+    case MetricKind::Fan:
+        return QStringLiteral("风扇");
+    }
+    return QString();
 }
 
 /// 把某一行改成"读不到"（保留其余读数）
@@ -359,7 +406,36 @@ void makeUnavailable(MetricInput *input, MetricKind kind)
         break;
     case MetricKind::CpuTemp:
         input->cpuTempValid = false;
-        input->cpuTempError = QStringLiteral("缺 PawnIOLib.dll");
+        input->cpuTempError = QStringLiteral("硬件库这次没给出 CPU 温度");
+        for (BridgeSensor &sensor : input->bridgeSensors) {
+            if (sensor.kind == SensorKind::Temperature
+                && sensor.identifier.contains(QStringLiteral("cpu"))) {
+                sensor.hasValue = false;
+            }
+        }
+        break;
+    case MetricKind::GpuTemp:
+        for (BridgeSensor &sensor : input->bridgeSensors) {
+            if (sensor.kind == SensorKind::Temperature
+                && sensor.identifier.contains(QStringLiteral("gpu"))) {
+                sensor.hasValue = false;
+            }
+        }
+        break;
+    case MetricKind::BoardTemp:
+        for (BridgeSensor &sensor : input->bridgeSensors) {
+            if (sensor.kind == SensorKind::Temperature
+                && sensor.identifier.contains(QStringLiteral("mainboard"))) {
+                sensor.hasValue = false;
+            }
+        }
+        break;
+    case MetricKind::Fan:
+        for (BridgeSensor &sensor : input->bridgeSensors) {
+            if (sensor.kind == SensorKind::Fan) {
+                sensor.hasValue = false;
+            }
+        }
         break;
     }
 }
@@ -425,17 +501,37 @@ int runHudGroupTests(Reporter &reporter,
 
         MetricOptions all;
         const HudSnapshot full = WinEase::FeaturePlugins::Hud::buildSnapshot(input, all);
-        // 温度开关同时管"磁盘温度"与"CPU 温度"两行，所以五项全开是 **6 行**
-        const bool orderOk = full.metrics.size() == 6
+        // 温度开关管"磁盘温度 + CPU 温度"两行；桥接层带来的三项各自独立开关。
+        // 八项全开 = **9 行**
+        const bool orderOk = full.metrics.size() == 9
                              && full.metrics.at(0).kind == MetricKind::Cpu
                              && full.metrics.at(1).kind == MetricKind::Memory
                              && full.metrics.at(2).kind == MetricKind::Network
                              && full.metrics.at(3).kind == MetricKind::Gpu
                              && full.metrics.at(4).kind == MetricKind::DiskTemp
-                             && full.metrics.at(5).kind == MetricKind::CpuTemp;
+                             && full.metrics.at(5).kind == MetricKind::CpuTemp
+                             && full.metrics.at(6).kind == MetricKind::GpuTemp
+                             && full.metrics.at(7).kind == MetricKind::BoardTemp
+                             && full.metrics.at(8).kind == MetricKind::Fan;
         reporter.check(orderOk,
-                       QStringLiteral("P3-07 五项全开：行序为 CPU / 内存 / 网速 / GPU / "
-                                      "磁盘温度 / CPU 温度（温度开关管两行）"),
+                       QStringLiteral("P3-07 八项全开：行序为 CPU / 内存 / 网速 / GPU / "
+                                      "磁盘温度 / CPU 温度 / GPU 温度 / 主板温度 / 风扇"),
+                       metricsText(full));
+
+        // 全部行都必须有值（构造数据里桥接层的四个传感器都有读数）
+        reporter.check(readingOf(full, MetricKind::CpuTemp) != nullptr
+                           && readingOf(full, MetricKind::CpuTemp)->available
+                           && readingOf(full, MetricKind::GpuTemp) != nullptr
+                           && readingOf(full, MetricKind::GpuTemp)->valueText
+                                  == QStringLiteral("43°C")
+                           && readingOf(full, MetricKind::BoardTemp) != nullptr
+                           && readingOf(full, MetricKind::BoardTemp)->valueText
+                                  == QStringLiteral("34°C")
+                           && readingOf(full, MetricKind::Fan) != nullptr
+                           && readingOf(full, MetricKind::Fan)->valueText.contains(
+                                  QStringLiteral("1240")),
+                       QStringLiteral("P3-07 桥接层读数进入面板：GPU 温度 / 主板温度 / 风扇"
+                                      "按标识符归属正确取出"),
                        metricsText(full));
 
         // 关掉"温度" → 那两行要一起消失（一个开关管两行，不能只藏一行）
@@ -443,18 +539,36 @@ int runHudGroupTests(Reporter &reporter,
         noTemperature.temperature = false;
         const HudSnapshot withoutTemperature =
             WinEase::FeaturePlugins::Hud::buildSnapshot(input, noTemperature);
-        reporter.check(withoutTemperature.metrics.size() == 4
+        reporter.check(withoutTemperature.metrics.size() == 7
                            && readingOf(withoutTemperature, MetricKind::DiskTemp) == nullptr
-                           && readingOf(withoutTemperature, MetricKind::CpuTemp) == nullptr,
-                       QStringLiteral("P3-07 关掉「温度」→ 磁盘温度与 CPU 温度**两行一起消失**"
-                                      "（一个开关管两行，不会出现「只藏掉一半」）"),
+                           && readingOf(withoutTemperature, MetricKind::CpuTemp) == nullptr
+                           && readingOf(withoutTemperature, MetricKind::GpuTemp) != nullptr,
+                       QStringLiteral("P3-07 关掉「温度」→ 磁盘温度与 CPU 温度**两行一起消失**，"
+                                      "但 GPU 温度（独立开关）不受牵连"),
                        metricsText(withoutTemperature));
+
+        // 关掉桥接层的三项 → 只剩原生五项（其中温度开关管两行）
+        MetricOptions noBridgeRows = all;
+        noBridgeRows.gpuTemp = false;
+        noBridgeRows.boardTemp = false;
+        noBridgeRows.fan = false;
+        const HudSnapshot nativeOnly =
+            WinEase::FeaturePlugins::Hud::buildSnapshot(input, noBridgeRows);
+        reporter.check(nativeOnly.metrics.size() == 6
+                           && readingOf(nativeOnly, MetricKind::GpuTemp) == nullptr
+                           && readingOf(nativeOnly, MetricKind::BoardTemp) == nullptr
+                           && readingOf(nativeOnly, MetricKind::Fan) == nullptr,
+                       QStringLiteral("P3-07 关掉 GPU 温度 / 主板温度 / 风扇 → 回到原生六行"),
+                       metricsText(nativeOnly));
 
         MetricOptions onlyCpu;
         onlyCpu.memory = false;
         onlyCpu.network = false;
         onlyCpu.gpu = false;
         onlyCpu.temperature = false;
+        onlyCpu.gpuTemp = false;
+        onlyCpu.boardTemp = false;
+        onlyCpu.fan = false;
         const HudSnapshot cpuOnly =
             WinEase::FeaturePlugins::Hud::buildSnapshot(input, onlyCpu);
         reporter.check(cpuOnly.metrics.size() == 1
@@ -470,6 +584,9 @@ int runHudGroupTests(Reporter &reporter,
         none.network = false;
         none.gpu = false;
         none.temperature = false;
+        none.gpuTemp = false;
+        none.boardTemp = false;
+        none.fan = false;
         const HudSnapshot empty = WinEase::FeaturePlugins::Hud::buildSnapshot(input, none);
         reporter.check(empty.metrics.isEmpty() && none.noneSelected(),
                        QStringLiteral("P3-07 一个都不开：模型返回空（面板据此画空态提示，"
@@ -479,8 +596,11 @@ int runHudGroupTests(Reporter &reporter,
                        full.title);
 
         // ---- ★ 核心纪律：读不到 → 必须写出原因，不许是 0/空白 ----
-        const MetricKind kinds[] = {MetricKind::Cpu, MetricKind::Memory, MetricKind::Network,
-                                    MetricKind::Gpu, MetricKind::DiskTemp, MetricKind::CpuTemp};
+        const MetricKind kinds[] = {MetricKind::Cpu,      MetricKind::Memory,
+                                    MetricKind::Network,  MetricKind::Gpu,
+                                    MetricKind::DiskTemp, MetricKind::CpuTemp,
+                                    MetricKind::GpuTemp,  MetricKind::BoardTemp,
+                                    MetricKind::Fan};
         QString unavailableReport;
         bool unavailableOk = true;
         for (MetricKind kind : kinds) {
@@ -494,6 +614,9 @@ int runHudGroupTests(Reporter &reporter,
             onlyThis.gpu = (kind == MetricKind::Gpu);
             onlyThis.temperature =
                 (kind == MetricKind::DiskTemp || kind == MetricKind::CpuTemp);
+            onlyThis.gpuTemp = (kind == MetricKind::GpuTemp);
+            onlyThis.boardTemp = (kind == MetricKind::BoardTemp);
+            onlyThis.fan = (kind == MetricKind::Fan);
 
             const HudSnapshot snapshot =
                 WinEase::FeaturePlugins::Hud::buildSnapshot(broken, onlyThis);
@@ -507,7 +630,7 @@ int runHudGroupTests(Reporter &reporter,
             unavailableReport += QStringLiteral("%1→%2；").arg(readingText(reading));
         }
         reporter.check(unavailableOk,
-                       QStringLiteral("P3-07 ★ 六项指标各自不可用时，面板上写的是**原因文本**"
+                       QStringLiteral("P3-07 ★ 九项指标各自不可用时，面板上写的是**原因文本**"
                                       "（非空、且绝不长得像一个读数 —— 不许显示 0 或留空）"),
                        unavailableReport);
 
@@ -523,18 +646,61 @@ int runHudGroupTests(Reporter &reporter,
                                       "（不可用是**逐行**的，不会把整面板拖垮）"),
                        metricsText(mixed));
 
-        // ---- CPU 温度的固定口径（第二里程碑的判定点）----
-        const QString cpuTempReason = WinEase::FeaturePlugins::Hud::cpuTempUnavailableText();
-        reporter.check(cpuTempReason.contains(QStringLiteral("PawnIOLib"))
-                           && !looksLikeReading(cpuTempReason),
-                       QStringLiteral("P3-07 CPU 温度不可用时说的是「需要 PawnIOLib.dll」"
+        // ---- CPU 温度的两级口径（P3-07 改版：C++/CLI 桥接）----
+        //
+        // ① 桥接层整个不可用 → 说清"缺组件"
+        const QString bridgeMissing = WinEase::FeaturePlugins::Hud::cpuTempUnavailableText();
+        reporter.check(bridgeMissing.contains(QStringLiteral("桥接"))
+                           && !looksLikeReading(bridgeMissing),
+                       QStringLiteral("P3-07 桥接层缺失时 CPU 温度说的是「需要 C++/CLI 桥接组件」"
                                       "（缺什么写什么，而不是一句「不可用」）"),
-                       cpuTempReason);
+                       bridgeMissing);
+        // ② 桥接层在跑、但温度探头没给值 → 说清"权限不够"（不许写 0°C）
+        const QString noReading = WinEase::FeaturePlugins::Hud::cpuTempNoReadingText();
+        reporter.check(noReading.contains(QStringLiteral("管理员"))
+                           && !looksLikeReading(noReading),
+                       QStringLiteral("P3-07 探头有值读不到时 CPU 温度说的是"
+                                      "「无读数（需要管理员权限）」"),
+                       noReading);
         const QString cpuTempTip = WinEase::FeaturePlugins::Hud::cpuTempTooltipText();
-        reporter.check(cpuTempTip.contains(QStringLiteral("PawnIO"))
+        reporter.check(cpuTempTip.contains(QStringLiteral("LibreHardwareMonitor"))
+                           && cpuTempTip.contains(QStringLiteral("管理员"))
                            && cpuTempTip.contains(QStringLiteral(".dll")),
-                       QStringLiteral("P3-07 CPU 温度的完整说明里有获取指引（去哪拿这个 DLL）"),
+                       QStringLiteral("P3-07 温度的完整说明写清了原理（LibreHardwareMonitor 桥接）"
+                                      "与权限前提"),
                        cpuTempTip.left(80) + QStringLiteral("…"));
+
+        // ---- 桥接层整体不可用时，三项桥接指标都写"原因"而不是 0 ----
+        {
+            MetricInput noBridge = input;
+            noBridge.bridgeAvailable = false;
+            noBridge.bridgeSensors.clear();
+            noBridge.bridgeError = QStringLiteral("桥接模块 WinEaseLiteMonitorBridge.dll 未加载");
+            MetricOptions onlyBridgeRows;
+            onlyBridgeRows.cpu = false;
+            onlyBridgeRows.memory = false;
+            onlyBridgeRows.network = false;
+            onlyBridgeRows.gpu = false;
+            onlyBridgeRows.temperature = false;
+            const HudSnapshot snapshot =
+                WinEase::FeaturePlugins::Hud::buildSnapshot(noBridge, onlyBridgeRows);
+            const MetricReading *gpuTemp = readingOf(snapshot, MetricKind::GpuTemp);
+            const MetricReading *boardTemp = readingOf(snapshot, MetricKind::BoardTemp);
+            const MetricReading *fan = readingOf(snapshot, MetricKind::Fan);
+            const bool ok = gpuTemp != nullptr && boardTemp != nullptr && fan != nullptr
+                            && !gpuTemp->available && !boardTemp->available && !fan->available
+                            && gpuTemp->valueText.contains(QStringLiteral("桥接"))
+                            && boardTemp->valueText.contains(QStringLiteral("桥接"))
+                            && fan->valueText.contains(QStringLiteral("桥接"))
+                            && !looksLikeReading(gpuTemp->valueText)
+                            && !looksLikeReading(boardTemp->valueText)
+                            && !looksLikeReading(fan->valueText);
+            reporter.check(ok,
+                           QStringLiteral("P3-07 ★ 桥接层不可用（模块缺失 / 无 .NET 运行时）时，"
+                                          "GPU 温度 / 主板温度 / 风扇三行都写出真实原因，"
+                                          "不是 0 也不是空白"),
+                           metricsText(snapshot));
+        }
 
         // ---- unavailableText 的最后一道闸 ----
         reporter.check(WinEase::FeaturePlugins::Hud::unavailableText(QString(), QStringLiteral("兜底"))
@@ -570,7 +736,7 @@ int runHudGroupTests(Reporter &reporter,
     reporter.check(plugin->hasSettings(),
                    QStringLiteral("P3-07 插件声明有设置面板"));
 
-    // ---- 初始配置：五项全开、1 秒刷新、点击穿透、位置已定（自检自己定，不依赖默认值）----
+    // ---- 初始配置：八项全开、1 秒刷新、点击穿透、位置已定（自检自己定，不依赖默认值）----
     services.preset(kHudId, QStringLiteral("showCpu"), true);
     services.preset(kHudId, QStringLiteral("showMemory"), true);
     services.preset(kHudId, QStringLiteral("showNetwork"), true);
@@ -716,15 +882,57 @@ int runHudGroupTests(Reporter &reporter,
                        .arg(diskValue.isEmpty() ? QStringLiteral("（无此行）") : diskValue)
                        .arg(disks.size()));
 
-    // ★ CPU 温度：本批固定不可用，且必须说清缺什么
+    // ★ CPU 温度：桥接层要么给真实读数、要么给出**具体原因**，二者必居其一
+    //   本机（普通权限）通常是"无读数（需要管理员权限）"——这条正是 P3-07 改版的核心口径
     const QString cpuTempValue = panelField(panelText, QStringLiteral("CPU 温度"));
-    reporter.check(!cpuTempValue.isEmpty()
-                       && panelFieldUnavailable(panelText, QStringLiteral("CPU 温度"))
-                       && cpuTempValue.contains(QStringLiteral("PawnIOLib"))
-                       && !looksLikeReading(cpuTempValue),
-                   QStringLiteral("P3-07 ★ CPU 温度**如实报缺 PawnIOLib.dll**"
-                                  "（第二里程碑接上 PawnIO 后，本组会改成「必须有真实读数」）"),
+    bool cpuTempOk = !cpuTempValue.isEmpty();
+    if (cpuTempOk && panelFieldUnavailable(panelText, QStringLiteral("CPU 温度"))) {
+        cpuTempOk = !looksLikeReading(cpuTempValue)
+                    && (cpuTempValue.contains(QStringLiteral("管理员"))
+                        || cpuTempValue.contains(QStringLiteral("桥接")))
+                    // 旧的 PawnIO 口径必须已经下线（改版后不许再提示去装 PawnIOLib.dll）
+                    && !cpuTempValue.contains(QStringLiteral("PawnIOLib"));
+    } else if (cpuTempOk) {
+        const int celsius = leadingInt(cpuTempValue);
+        cpuTempOk = cpuTempValue.contains(QStringLiteral("°C")) && celsius != INT_MIN
+                    && celsius >= 0 && celsius <= 150;
+    }
+    reporter.check(cpuTempOk,
+                   QStringLiteral("P3-07 ★ CPU 温度：要么是桥接层读到的合理温度，"
+                                  "要么是**非空的具体原因**（权限不够 / 组件缺失），"
+                                  "绝不显示 0°C，也不再提示 PawnIOLib.dll"),
                    cpuTempValue.isEmpty() ? QStringLiteral("（无此行）") : cpuTempValue);
+
+    // ★ 桥接层的三项：读数 or 原因，绝不允许空白或伪装成 0
+    //   （GPU 温度本机普通权限即可读到；主板温度 / 风扇多为"无读数（需要管理员权限）"）
+    QString bridgeRowsReport;
+    bool bridgeRowsOk = true;
+    const QList<MetricKind> bridgeKinds = {MetricKind::GpuTemp, MetricKind::BoardTemp,
+                                           MetricKind::Fan};
+    for (MetricKind kind : bridgeKinds) {
+        const QString label = panelLabelOf(kind);
+        const QString value = panelField(panelText, label);
+        bool rowOk = !value.isEmpty();
+        if (rowOk && panelFieldUnavailable(panelText, label)) {
+            rowOk = !looksLikeReading(value)
+                    && (value.contains(QStringLiteral("管理员"))
+                        || value.contains(QStringLiteral("桥接"))
+                        || value.contains(QStringLiteral("不可用")));
+        } else if (rowOk) {
+            const int magnitude = leadingInt(value);
+            rowOk = !value.isEmpty() && magnitude != INT_MIN && magnitude > 0
+                    && ((kind == MetricKind::Fan && value.contains(QStringLiteral("RPM")))
+                        || (kind != MetricKind::Fan && value.contains(QStringLiteral("°C"))));
+        }
+        if (!rowOk) {
+            bridgeRowsOk = false;
+        }
+        bridgeRowsReport += QStringLiteral("%1=%2；").arg(label, value);
+    }
+    reporter.check(bridgeRowsOk,
+                   QStringLiteral("P3-07 ★ 桥接层三项（GPU 温度 / 主板温度 / 风扇）在真实面板上"
+                                  "要么是读数、要么是原因，没有空行"),
+                   bridgeRowsReport);
 
     // ★ 面板上每一行都必须有文案（含不可用原因）——不存在空白行
     QString blankReport;
@@ -743,9 +951,10 @@ int runHudGroupTests(Reporter &reporter,
 
     // ---- 逐项开关：当场改行数，窗口高度跟着变 ----
     const int fullHeight = panel.overlay()->overlayGeometry().height();
-    reporter.check(panel.rowCount() == 6,
-                   QStringLiteral("P3-07 五项全开时面板上是 6 行"
-                                  "（CPU / 内存 / 网速 / GPU / 磁盘温度 / CPU 温度）"),
+    reporter.check(panel.rowCount() == 9,
+                   QStringLiteral("P3-07 八项全开时面板上是 9 行"
+                                  "（CPU / 内存 / 网速 / GPU / 磁盘温度 / CPU 温度 / "
+                                  "GPU 温度 / 主板温度 / 风扇）"),
                    QStringLiteral("%1 行：%2").arg(panel.rowCount()).arg(panelText));
 
     services.setConfigValue(kHudId, QStringLiteral("showGpu"), false);
@@ -761,10 +970,10 @@ int runHudGroupTests(Reporter &reporter,
                    QStringLiteral("P3-07 改完配置再启用成功"));
     HudPanelView shrunk = hudPanelOf(host);
     const bool shrunkOk = waitFor(
-        [&shrunk] { return shrunk.valid() && shrunk.rowCount() == 3; }, 4000);
+        [&shrunk] { return shrunk.valid() && shrunk.rowCount() == 6; }, 4000);
     reporter.check(shrunkOk,
-                   QStringLiteral("P3-07 ★ 关掉 GPU 与温度后，面板上只剩 3 行"
-                                  "（逐项开关真的作用到面板，而不是只写进配置）"),
+                   QStringLiteral("P3-07 ★ 关掉「GPU 利用率」与「温度」后，面板只剩 6 行"
+                                  "（9 - 1 - 2；逐项开关真的作用到面板，而不是只写进配置）"),
                    shrunk.valid() ? QStringLiteral("%1 行：%2")
                                         .arg(shrunk.rowCount())
                                         .arg(shrunk.snapshotText())
@@ -773,7 +982,7 @@ int runHudGroupTests(Reporter &reporter,
         reporter.check(shrunk.overlay()->overlayGeometry().height() < fullHeight,
                        QStringLiteral("P3-07 ★ 行少了窗口也跟着变矮（尺寸由行数决定，"
                                       "不是留一片空白）"),
-                       QStringLiteral("6 行 %1 px → 3 行 %2 px")
+                       QStringLiteral("9 行 %1 px → 6 行 %2 px")
                            .arg(fullHeight)
                            .arg(shrunk.overlay()->overlayGeometry().height()));
     }
@@ -845,7 +1054,8 @@ int runHudGroupTests(Reporter &reporter,
         const QStringList missing = [settings] {
             QStringList missingNames;
             for (const QString &name : {kCpuCheck, kMemoryCheck, kNetworkCheck, kGpuCheck,
-                                        kTemperatureCheck, kIntervalSpin, kInteractiveCheck,
+                                        kTemperatureCheck, kGpuTempCheck, kBoardTempCheck,
+                                        kFanCheck, kIntervalSpin, kInteractiveCheck,
                                         kResetButton, kDetailLabel, kUnavailableLabel}) {
                 if (settings->findChild<QObject *>(name) == nullptr) {
                     missingNames.append(name);
@@ -854,13 +1064,16 @@ int runHudGroupTests(Reporter &reporter,
             return missingNames;
         }();
         reporter.check(missing.isEmpty(),
-                       QStringLiteral("P3-07 设置面板控件齐全（5 个指标开关 / 刷新间隔 / "
+                       QStringLiteral("P3-07 设置面板控件齐全（8 个指标开关 / 刷新间隔 / "
                                       "可拖拽 / 复位 / 明细 / 已知限制）"),
                        QStringLiteral("缺：%1").arg(missing.join(QStringLiteral(", "))));
         auto *unavailableLabel = settings->findChild<QLabel *>(kUnavailableLabel);
         reporter.check(unavailableLabel != nullptr
-                           && unavailableLabel->text().contains(QStringLiteral("PawnIOLib")),
-                       QStringLiteral("P3-07 ★ 设置面板上照实写着「CPU 温度需要 PawnIOLib.dll」"
+                           && unavailableLabel->text().contains(
+                               QStringLiteral("LibreHardwareMonitor"))
+                           && unavailableLabel->text().contains(QStringLiteral("管理员")),
+                       QStringLiteral("P3-07 ★ 设置面板上照实写着「温度来自 C++/CLI 桥接"
+                                      "（LibreHardwareMonitor），多数机器需要管理员权限」"
                                       "（能力边界要摆在用户看得到的地方，不能只藏在源码注释里）"),
                        unavailableLabel != nullptr ? unavailableLabel->text().left(60) : QString());
         auto *intervalSpin = settings->findChild<QSpinBox *>(kIntervalSpin);

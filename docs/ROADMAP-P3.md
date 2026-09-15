@@ -1,4 +1,25 @@
-﻿## P3 高风险（16 项）
+## P3 高风险（原 16 项 → **2026-09-15 按用户要求裁剪为 7 项 + 新增 2 项**）
+
+
+> ✂ **2026-09-15 的两次用户指令（本文件已经按其结果整理过，未完成项**不是被注释掉，而是被删除**）**：
+>
+> 1. **删除 P3 阶段所有未完成项目** —— 被删掉的 9 项：
+>    P3-04 文本快速扩展（`input.text_expander`）、P3-05 快捷键自定义映射（`input.key_remap`）、
+>    P3-06 鼠标手势（`input.mouse_gesture`）、P3-08 屏幕截图与录屏（`monitor.screenshot`）、
+>    P3-10 音频设备快速切换（`media.device_switch`）、P3-12 快速启动器（`launcher.quick_launch`）、
+>    P3-13 命令面板（`launcher.command_palette`）、P3-15 任务栏透明度（`personal.taskbar_alpha`）、
+>    P3-16 开始菜单增强（`personal.start_menu`）。
+>    连"### 输入与操作效率 / ### 启动器与搜索 / ### 个性化与主题"三个**已经空掉的章节**
+>    一并删除；预研结论表里对应的 9 行也一并删除（预研探针 `p3_spike` 本身保留：
+>    它同时覆盖其它项，且留下的结论仍然可复现）。
+> 2. **P3-07 更换实现方式** —— 温度采集从 PawnIO 改为
+>    **C++/CLI 桥接 `LibreHardwareMonitor`**（参考 `refrences/LiteMonitor` 的接口），
+>    并新增 **GPU 温度 / 主板温度 / 风扇转速** 三行（详见条目）。
+> 3. **新增两项功能**（放在本文末，已在工程里实现并通过自检）：
+>    `file.batch_move` 批量移动文件（正则匹配）、
+>    `net.lan_transfer` 局域网跨平台文件传输（手机免装 App；PC ↔ PC 发现直发）。
+> 4. 随后又追加 **F3 单文件自解压安装程序**（`winease_installer` 目标 + `installer_smoke` 自检）——
+>    让"38 个插件 + Qt + VC++ 运行库"能以一个 exe 交付出去，详见文末「交付与打包」。
 
 > **每项必须先做 0.5–1 天的技术预研 spike，产出可行性结论，再决定「实现 / 降级 / 砍掉」**，
 > 不得直接进入编码。预研结论要回写到本文件对应条目的子项。
@@ -20,19 +41,10 @@
 > | P3-01 虚拟桌面 | ✅ **可开工**（**已交付 2026-09-14**；★ 随后按用户要求**收窄为只读的「多桌面窗口一览」**：搬移与实验性按键通道都砍掉 → 见条目里的三档探针表与裁剪记录 C10） | `IVirtualDesktopManager` 两个查询方法都拿到真实结果（`IsWindowOnCurrentVirtualDesktop` = 是；`GetWindowDesktopId` = 非零 GUID） |
 > | P3-02 文件锁定 | ✅ **可开工**（**已交付 2026-09-14**） | Restart Manager **完整自证**：自己独占一个文件 → `RmGetList` 报出的占用者就是自己（应用名 + PID），且**全程免提权** |
 > | P3-03 批量格式转换 | ✅ **可开工**（**已交付 2026-09-14**；无需 spike） | `QImageWriter` 由 Qt 提供；文档转换已按路线图裁剪。★ 交付后自检修出两个真 bug（写手未析构就改名 / `std::thread` 赋值给 joinable 的自己 → `terminate`）→ 踩坑 #70 / #71 |
-> | P3-04 文本扩展 | ✅ 可开工（风险只能手测） | 低层钩子 + `SendInput` + 吞事件已在 P2-05 真实验证（`consumedEvents` + 真实系统音量） |
-> | P3-05 按键重映射 | ✅ 同上 | 同上；"中文输入法时序 / UWP 收不到注入"这类风险探针证不了，必须实现时提供全局暂停与白黑名单 |
-> | P3-06 鼠标手势 | ✅ 同上 | 同上（`WH_MOUSE_LL` 已在 HookService 里） |
-> | P3-07 硬件监控 | ⚠ **分两个里程碑**（★ **第一批已交付 2026-09-15**） | 见下方条目的实测结论；交付时自检修出两个真 bug（磁盘温度属性 ID 手抄成 22 / `onHotkey` 拿完整 id 比动作名）→ 踩坑 #72 / #73 |
-> | P3-08 截图录屏 | ✅ 批次 A 可直接开工 | 批次 A 零依赖；批次 B/C 的 WinRT 类（`OcrEngine` / `GraphicsCaptureSession` / `GraphicsCaptureItem`）都在，Media Foundation 也能初始化 —— 但"真抓到一帧 / 真写出一段视频"只能实现时验证 |
+> | P3-07 硬件监控 | ✅ **已交付 2026-09-15**（★ 当天按用户要求把温度采集改为 **C++/CLI 桥接 LibreHardwareMonitor**；**PawnIO 路线作废**，见裁剪记录 C11） | 桥接层原生侧动态加载 + 纯 C ABI，同一台机器普通权限下一次性枚举 **199 个传感器**、`GPU Core = 42.7°C` 有值；CPU 封装温度探头存在但无值（需管理员）→ 面板如实写"无读数（需要管理员权限）"。交付时自检修出两个真 bug（磁盘温度属性 ID 手抄成 22 / `onHotkey` 拿完整 id 比动作名）→ 踩坑 #72 / #73；构建期又逼出三条（MSBuild 解析不了 `Microsoft.NET.Sdk` / `MSB3644` / CMake 吞掉 `/AI`、`/FU`）→ 踩坑 #81~#83 |
 > | P3-09 音量混合器 | ✅ **可开工**（零风险）（**已交付 2026-09-15**） | `IAudioSessionManager2` → `GetSessionEnumerator` → `GetCount` 全链路可用（本机 1 个会话）；"每应用指定输出设备"仍按路线图裁剪。★ 交付后自检修出 1 个真 bug（**每个应用都被多报一份会话** → 踩坑 #74） |
-> | P3-10 音频设备切换 | ✅ **可开工**（必须带降级路径） | 见下方条目的实测结论 —— ⚠ **注意：初版结论"接口已失效"是错的**，原因见文末"预研自身的教训" |
 > | P3-11 媒体控制 | ✅ **可开工**（**已交付 2026-09-15**） | `GlobalSystemMediaTransportControlsSessionManager` 可用（WinRT 类探测）。★ 交付时把预研**做实了一层**：自检的子进程用 `ISystemMediaTransportControlsInterop::GetForWindow` 造出的会话**确实能被系统枚举、能被精确控制、媒体键也会路由到它**（实测结论，不再是"类存在"）；顺带逼出 4 条踩坑（#77 手写互操作接口基类 / #78 STA 上读封面死锁 / #79 正斜杠路径 / #80 播放状态由播放器自己改） |
-> | P3-12 快速启动器 | ✅ 可开工 | `.lnk` 扫描用 `IShellLinkW`（Shell 能力已在 `ShellUtils` 用过）；文件搜索已后置 |
-> | P3-13 命令面板 | ✅ 无技术风险 | 纯本地规则/正则引擎；成本全在指令覆盖面上（可增量做） |
 > | P3-14 USB 管控 | ✅ **可开工** | 新判据（PnP RemovalPolicy + 总线类型）已在本机**正确识别出用户的移动硬盘**（`I: Generic · NTFS · 238.5 GB · USB · 可随时拔出`）—— 而旧的 `DRIVE_REMOVABLE` 判据把它漏掉了（移动硬盘在 Windows 里通常被报成固定盘） |
-> | P3-15 任务栏透明度 | ⚠ 高风险，必留退路 | 探针**不能**在不改用户任务栏的前提下验"改完长什么样"，只能验"函数存在 + `Shell_TrayWnd` 找得到" → 实现时按路线图要求带**失败自动还原**与「恢复系统默认」 |
-> | P3-16 开始菜单增强 | ✅ 风险低 | 只读写注册表可控项；但每个键都随 Windows 版本变化，必须"读不到就当不支持"，绝不能盲写 |
 >
 > **本机环境（预研实测，2026-09-14 二次复核）**：Windows `10.0 build 26200`；CPU `GenuineIntel` family 6；
 > **PawnIO 驱动已安装**（服务已注册、设备存在但需管理员）、用户态 `PawnIOLib.dll` 缺失；
@@ -218,49 +230,57 @@
   - ⚠ 规模：自检按 **24 张**真跑（含中途取消）；**500 张量级留手测**。失败项只列**原因**
     （磁盘满 / 目录只读 / 目标被占用），不自动重试；文本侧只做**编码与换行**转换（不做文档格式）。
 
-### 输入与操作效率
-
-- [ ] **P3-04 文本快速扩展** — `input.text_expander` · L · 无提权
-  - 实现：HookService 缓冲按键 → 匹配缩写（如 `;addr`）→ 回删 → 注入长文本（剪贴板或 `SendInput`）
-  - ⚠ 三大坑：中文输入法时序、UWP/提权窗口收不到注入、游戏反作弊拦截钩子
-  - 必备：全局暂停开关、应用白名单/黑名单、剪贴板保护（注入后恢复原内容）
-  - 验收：在记事本/浏览器输入缩写正确展开；暂停后无任何副作用
-
-- [ ] **P3-05 快捷键自定义映射** — `input.key_remap` · L · 无提权
-  - 实现：HookService 拦截 + 吞掉事件 + `SendInput` 改写；映射表 UI
-  - 功能：单键重映射、组合键映射、误触键禁用（CapsLock / Insert / Win 等安全子集）
-  - ⚠ 低层钩子无法"修改"事件，只能吞掉再补发，存在时序抖动；需提供"仅禁用不改写"的安全模式
-  - 验收：禁用 CapsLock 生效；映射后按键延迟无可感增加
-
-- [ ] **P3-06 鼠标手势** — `input.mouse_gesture` · L · 无提权
-  - 实现：HookService 采集轨迹 → 方向序列识别（U/D/L/R）→ 动作表 + OverlayKit 绘制轨迹
-  - 动作：关闭窗口、切换标签、最小化、前进/后退、自定义快捷键
-  - ⚠ 需处理多屏负坐标、误触发抑制、与画图类软件冲突
-  - 验收：8 方向手势识别准确；轨迹绘制不遮挡且随松键立即消失
+- [x] **新增 F1 批量移动文件（正则匹配）** — `file.batch_move` · M · 无提权 · **已交付 2026-09-15**
+  - 需求（用户插单）：按**正则表达式**挑文件，整批**移动**到目标目录（区别于 P2-01 的批量重命名：
+    这里要跨目录搬，且必须能反悔）。
+  - **产出**：
+    - 引擎 `plugins/common/BatchMoveEngine.{h,cpp}`（纯函数：`buildPlan` / `applyPlan(dryRun)` /
+      `undoMoves` / `serializeMoveRecords` / `isWithinDirectory`（目标路径必须落在目标目录内）；
+      **插件与自检编译同一份源码**）
+    - 插件 `plugins/file_batch_move/`（id `file.batch_move`）：源/目标目录、正则、改名模板
+      （`{name}`/`{ext}`/`{n}`）、大小写敏感、递归、保留目录结构、匹配完整路径、重名策略
+      （跳过 / 自动改名 / 覆盖）、**计划表**、`生成计划` / `预演` / `执行` / `撤销上次移动`
+  - ★ **纪律：先出计划、再预演、最后才动盘**
+    · 计划表逐项写明"会搬到哪 / 为什么不动"（未匹配、目标名非法、原地不动、目标已存在、同批撞车）；
+    · 「预演」只报告条数，**一个字节都不动盘**（自检断言的正是"预演前后磁盘快照一致"）；
+    · 执行结果写**撤销日志**（`%APPDATA%/WinEase/batch_move_undo.log`），「撤销上次移动」反向搬回；
+    · 正则非法 → **整个计划作废**（不降级、不静默忽略）；命名模板算出 `..` 穿越 → 逐项拦下；
+    · 目标重名**默认跳过而不是覆盖**，要覆盖得手动改策略。
+  - **自检断言**（`tests/feature_smoke/batch_move_group.cpp`）：非法正则作废且原因非空、
+    `../` 穿越全部拦下（一条 Ready 都没有）、重名按策略跳过且给出提示、
+    ★ 预演前后目标目录**逐文件一致**、★ 通过**插件的设置面板**点「执行」后文件**真的**出现在
+    目标目录且源目录真的少了它、没匹配到的文件一个都没动、
+    ★ 点「撤销」后文件搬回原位且目标目录清空。
 
 ### 系统监控
 
-- [ ] **P3-07 硬件监控悬浮窗** — `monitor.hardware_hud` · L · 部分 ▲提权 · **第一批已交付 2026-09-15**（第二批等 `PawnIOLib.dll`）
+- [x] **P3-07 硬件监控悬浮窗** — `monitor.hardware_hud` · L · 部分 ▲提权 · **已交付 2026-09-15**（★ 当天按用户要求**把温度采集改为 C++/CLI 桥接**，PawnIO 路线作废）
   - CPU：`GetSystemTimes` · 内存：`GlobalMemoryStatusEx` · 网速：`GetIfTable2`
   - GPU 利用率：`PDH "\GPU Engine(*)\Utilization Percentage"`（与任务管理器同源）
   - 磁盘温度：`IOCTL_STORAGE_QUERY_PROPERTY` → `StorageDeviceTemperatureProperty`（零依赖）
-  - **CPU/主板温度：PawnIO**（见 `ENV-SETUP.md` §4）：Intel MSR `0x19C`/`0x1B1`/`0x1A2`，
-    AMD SMN `F17H_M01H_THM_TCON_CUR_TMP`；**走提权助手 + `LoadLibrary` 动态加载 PawnIOLib**
-  - 子项预研：⛔ PawnIO 未安装时自动降级路径；`PawnIOLib.h` 精确签名；模块 .bin 文件名与导出函数
+  - **CPU / 主板 / GPU 温度、风扇转速：C++/CLI 桥接**（2026-09-15 按用户要求改版）：
+    `src/bridge/WinEaseLiteMonitorBridge.cpp`（`/clr:netcore` 混合模式程序集）
+    → **直接调用 `LibreHardwareMonitorLib`**，也就是 `refrences/LiteMonitor` 用的同一个硬件库；
+    原生侧 `src/win32/LiteMonitorBridge.{h,cpp}` 动态 `LoadLibrary` + 纯 C ABI 取快照。
+    ⛔ **PawnIO 路线正式作废**（不是"暂缓"）：`PawnIOLib.dll` 长期缺失、`PawnIOLib.h` 签名未定、
+    许可证未确认 —— 而桥接方案当天就跑通并读到真实读数，没有理由继续押注前者。
+  - 子项预研：⛔ 桥接层缺失时自动降级（fail-closed，逐行写"缺什么"）；桥接 DLL 与托管依赖的部署形态；
+    `LoadLibrary` 失败 / 无 .NET 8 运行时 / 硬件库刷新失败 三类原因分别有人话
   - **预研结论（2026-09-14，`p3_spike`）**：
     ① **磁盘温度已经可读**：原生 `IOCTL_STORAGE_QUERY_PROPERTY` → `StorageDeviceTemperatureProperty`
        在本机返回 `PhysicalDrive0 39°C`（零依赖、零提权）。
        ⚠ 注意 `win32_smoke` 里那条"磁盘温度不可用"是**另一条路径**（它查的是别的属性），别把两者混为一谈；
     ② **PawnIO 驱动其实已经装好了**：服务 `PawnIO` 已注册、设备 `\\.\PawnIO` 存在
-       （普通权限打开返回错误码 5 = 需要管理员）→ ENV-SETUP §4.2 的"走提权助手打开"正是必须的；
-    ③ 缺的是**用户态 `PawnIOLib.dll`**（`LoadLibraryW` 失败）—— 把它放进 `build\bin\` 或 PATH
-       之后才能做 CPU 温度；**在它到位之前，CPU 温度只能走"如实报不可用"**；
-    ④ `PawnIOLib.h` 精确签名 / 模块 `.bin` 文件名 / 许可证条款（ENV-SETUP §4.4 的未决项）**仍未定**，
-       需要拿到 PawnIO 发行物才能确认 —— 不能凭猜写代码。
-    → **实施建议**：先做"磁盘温度 + CPU/内存/网速/GPU 利用率"（全部零依赖、本机可验），
-      把 CPU/主板温度作为第二个里程碑（前置是 `PawnIOLib.dll`）。
+       （普通权限打开返回错误码 5 = 需要管理员）；
+    ③ 缺的是**用户态 `PawnIOLib.dll`**（`LoadLibraryW` 失败）—— 这正是后来改走 C++/CLI 桥接的直接原因；
+    ④ `PawnIOLib.h` 精确签名 / 模块 `.bin` 文件名 / 许可证条款**始终未定** → 该路线被裁剪（见文末 C11）；
+    ⑤ **2026-09-15 桥接方案的实测结论（同一台机器，普通权限）**：
+       桥接层一次刷新枚举出 **199 个传感器**；`GPU Core = 42.7°C` 有值；
+       CPU 封装温度探头存在但 `hasValue = false`（LibreHardwareMonitor 要经内核驱动读 MSR，
+       普通权限拿不到）→ 面板如实写"无读数（需要管理员权限）"，**不显示 0°C**。
   - 显示：OverlayKit 悬浮窗，可拖拽/吸附/穿透模式/自定义指标组合
-  - ⚠ GPU 温度见裁剪记录（需厂商 SDK，默认不做）
+  - ✅ **GPU 温度也做出来了**（原计划因"需厂商 SDK"裁剪）：桥接层走 NVIDIA/AMD 的**用户态**
+    接口，普通权限即可读到 —— 这条比原方案更好，裁剪记录相应更新
   - ✅ **第一批已交付 2026-09-15**（磁盘温度 + CPU / 内存 / 网速 / GPU 利用率）：
     - **交付落点**：平台层采样器（`SystemInfo`：`CpuSampler` / `memoryInfo()` /
       `NetworkSampler` / `GpuSampler` / `diskTemperatures()`）+ 纯函数层
@@ -268,36 +288,39 @@
       **插件与自检编译同一份源码**）+ 悬浮层 `plugins/monitor_hardware_hud/hud_overlay.{h,cpp}`
       （OverlayKit 子类）+ 插件 `plugins/monitor_hardware_hud/`（id `monitor.hardware_hud`）。
     - **形态**：常驻 HUD 悬浮窗，默认**点击穿透**；`Ctrl+Shift+Alt+I` 切"可拖拽"、
-      `Ctrl+Shift+Alt+R` 复位到主屏工作区右上角；5 个指标开关 + 刷新间隔（500ms~10s）
+      `Ctrl+Shift+Alt+R` 复位到主屏工作区右上角；8 个指标开关 + 刷新间隔（500ms~10s）
       +「查看明细」+「已知限制」。
-    - ★ **"温度"一个开关管两行**（磁盘温度 + CPU 温度），关掉就两行一起消失，不会出现"只藏一半"。
-    - ★ **读不到就写原因，绝不显示 0 或留空**：本机 `PawnIOLib.dll` 缺失 →
-      CPU 温度一行如实显示"需要 PawnIOLib.dll（本机缺失）"；USB 移动硬盘读不到温度
-      （`ERROR_IO_DEVICE`）同样如实写原因。
-    - **自检断言**（`hud_group.cpp`，59 条 / exit 0）：纯函数层逐项开关与行序、
-      百分比/内存/网速的格式化边界、**六项各自不可用时都是"非空原因文本"**、
-      设置面板改完**立刻落到面板上**、五项全开面板 6 行、
-      ★ 内存一行是**本机真实量级**（与平台层实测同一数量级）、
-      ★ 磁盘温度一行是 0~120°C 的合理值或非空原因、
-      ★ 复位后面板真的落在**主屏工作区右上角**、★ 可拖拽真的关掉了点击穿透、
-      停用后插件自己的两条快捷键被注销（不残留）。
-    - ⚠ **两个自检抓出来的真 bug**（都不是"看代码能看出来"的）：
+    - ★ **"温度"一个开关管两行**（磁盘温度 + CPU 温度），关掉就两行一起消失，不会出现"只藏一半"；
+      GPU 温度 / 主板温度 / 风扇各有独立开关（关掉即回到原生 6 行）。
+    - ★ **读不到就写原因，绝不显示 0 或留空**（三层口径，都不是"不可用"三个字了事）：
+      桥接层没装上 → "需要 C++/CLI 桥接组件"；桥接层在跑但探头没值 →
+      "无读数（需要管理员权限）"；USB 移动硬盘读不到温度（`ERROR_IO_DEVICE`）→ 如实写原因。
+  - ✅ **第二批（CPU / 主板 / GPU 温度 + 风扇转速）已随改版一并交付 2026-09-15**：
+    - **交付落点**：① 桥接程序集 `src/bridge/WinEaseLiteMonitorBridge.cpp`（唯一允许 `/clr` 的目录）；
+      ② 托管依赖 `src/bridge/managed/WinEase.LiteMonitorDeps.csproj`（NuGet 还原
+      `LibreHardwareMonitorLib 0.9.6` 及其 8 个依赖，平铺到 `build/bin`）；
+      ③ 原生封装 `src/win32/LiteMonitorBridge.{h,cpp}`（动态加载 + POD 翻译 + 中文原因）；
+      ④ 选择逻辑 `HudMetrics::pickSensor()`（**按 LHM 标识符判归属**，不按会被本地化的硬件名）；
+      ⑤ 悬浮窗与设置面板新增 3 个开关。
+    - ★ **构建期解掉的三处坑**：CMake 写 `CLRSupport=NetCore` 会让 VS 的 MSBuild 去
+      `Import Sdk="Microsoft.NET.Sdk"` 而解析不了（**踩坑 #81**）；C++ 工程默认
+      `TargetFrameworkVersion=v4.0` 触发 `MSB3644`（**踩坑 #82**）；
+      CMake 的 `/AI`、`/FU` 选项表会把路径当源文件吞进 `AdditionalOptions`（**踩坑 #83**）。
+    - **自检断言**（`hud_group.cpp`，含改版后新增）：
+      ★ 九项指标各自不可用时写的都是**非空原因文本**（且不长得像读数）、
+      ★ 桥接层整体不可用时 GPU 温度/主板温度/风扇三行都写"桥接"原因、
+      ★ 构造的桥接传感器（CPU/GPU/主板/风扇）按标识符归属**取对了行**、
+      ★ 真实面板上桥接三项要么是读数要么是原因（没有空行）、
+      ★ CPU 温度**不再出现 `PawnIOLib` 口径**（旧路径必须已下线）、
+      ✂ 内存一行是**本机真实量级**、磁盘温度是 0~120°C 或非空原因、复位落在主屏工作区右上角、
+      可拖拽真的关掉了点击穿透、停用后两条快捷键被注销。
+    - **回归**：`feature_smoke` 累计 **1205 项 / 失败 0 / exit 0**（含桥接读数在真实机器上的断言）。
+    - ⚠ **两个自检抓出来的真 bug（第一批）**：
       ① 磁盘温度的属性 ID 被手抄成 `22`，而本机 SDK 的
         `StorageDeviceTemperatureProperty` 是 **52** → IOCTL 返回 `ERROR_INVALID_FUNCTION`，
         面板于是把"能读到"报成了"该驱动不支持"（**踩坑 #72**）；
       ② `onHotkey()` 直接拿宿主传进来的**完整快捷键 id** 比动作名 →
         两个快捷键**按下去完全没反应**，而 `dispatchAction()` 照样返回 true（**踩坑 #73**）。
-    - ⏸ **第二批（CPU/主板温度）前置未满足**：`PawnIOLib.dll` 缺失（详见预研结论③），
-      `PawnIOLib.h` 精确签名 / `.bin` 模块名 / 许可证仍未定 → 到位前**不写猜测代码**。
-
-- [ ] **P3-08 屏幕截图与录屏** — `monitor.screenshot` · L~XL · 无提权
-  - **建议拆三批推进**：
-    - 批次 A（M）：区域/窗口/全屏截图 + `QPainter` 标注（箭头/矩形/文字/马赛克）+ 贴图钉屏
-    - 批次 B（L）：OCR（WinRT `Windows.Media.Ocr`）+ 滚动截图（固定步长 + 重叠区匹配，简化版）
-    - 批次 C（XL）：录屏（`Windows.Graphics.Capture` + Media Foundation `IMFSinkWriter`）
-  - ⚠ 滚动截图鲁棒性差（动态内容/懒加载）→ UI 需明确适用场景
-  - ⚠ 录屏放最后，或在批次 A+B 完成后重新评估是否值得做
-  - 验收：批次 A 完成后即可日常替代系统截图工具
 
 ### 音频与媒体
 
@@ -354,35 +377,6 @@
     - **回归**：`feature_smoke` **累计 1069 项 / 失败 0 / exit 0**；`win32_smoke`·
       `plugin_smoke`·`ui_smoke` 全部 exit 0。
 
-- [ ] **P3-10 音频设备快速切换** — `media.device_switch` · L · 无提权
-  - 实现：`IMMDeviceEnumerator` 枚举设备
-  - ⚠ **官方无公开的"设置默认设备"API**，需未公开 `IPolicyConfig` → 必须做 Windows 版本兜底
-  - 降级路径：检测失败时退化为"打开系统声音设置面板"并说明原因
-  - 预研项：Win11 24H2 上 `IPolicyConfig` 是否仍可用、CLSID 是否变化
-  - ✅ **预研结论（2026-09-14，`p3_spike`，**含一次结论反转**）**：
-    初版探针只试了 **1 个 CLSID × 2 个 IID**，两个 IID 都返回 `E_NOINTERFACE`，
-    于是写下"未公开接口已失效 → 必须降级"。**这是错的** —— 补上另一个已知 CLSID
-    （`CPolicyConfigVistaClient` = `{294935CE-F637-4E7C-A41B-AB255460B862}`）后：
-
-    | 组合 | 结果 |
-    |---|---|
-    | `CPolicyConfigClient` + `IPolicyConfig` | `E_NOINTERFACE` |
-    | `CPolicyConfigClient` + `IPolicyConfigVista` | `E_NOINTERFACE` |
-    | `CPolicyConfigVistaClient` + `IPolicyConfig` | `E_NOINTERFACE` |
-    | **`CPolicyConfigVistaClient` + `IPolicyConfigVista`** | **`S_OK`** |
-
-    → **结论：接口一直都在，只是"新类"那个组合不成立** → **P3-10 可开工**。
-    **实现要求**：① 从**老到新**依次尝试上表四种组合（拿到即用）；
-    ② **必须带降级路径**（全部失败 → "打开系统声音设置 + 如实显示当前默认设备"）；
-    ③ 探针**没有**调用 `SetDefaultEndpoint`（不拿用户的默认播放设备做实验），
-       所以"取到接口" ≠ "切换一定生效" —— 实现阶段要**真切一次**并做好失败回退。
-  - ⛔ **明确不采用第三方方案**（2026-09-14 决策，问过用户后定为 A 方案）：
-    `AudioDeviceCmdlets` 与 `NirCmd` 的 `setdefaultsounddevice` **内部用的是同一个未公开
-    `IPolicyConfig`**（前者的源码里就有 `SOURCE/IPolicyConfig.cs`），所以它们解决不了根本问题，
-    却要付出许可/分发/杀软/"错误信息不可控"/每次切换要起进程的代价。
-    → **要的是"另一个 IID/CLSID"，不是"另一个程序"** —— 而那两个 GUID 是公开可查的（上表）。
-  - 验收：扬声器 ↔ 耳机 ↔ HDMI 切换后系统立即生效；失败时给出明确降级提示
-
 - [x] **P3-11 媒体控制面板** — `media.player_panel` · M · 无提权 · **已交付 2026-09-15**
   - 实现：媒体键 `SendInput(VK_MEDIA_*)`；当前播放信息用 WinRT
     `GlobalSystemMediaTransportControlsSessionManager`（SDK 自带，不算第三方库）
@@ -438,21 +432,6 @@
       `p3_spike` exit 1 的唯一失败项是 P3-14「本机当前没有可移除存储设备」（那一次用户的移动硬盘没插），
       与本次改动无关。
 
-### 启动器与搜索
-
-- [ ] **P3-12 快速启动器** — `launcher.quick_launch` · L~XL · 无提权
-  - 实现：全局快捷键弹出无边框搜索窗（OverlayKit）
-  - 索引来源：开始菜单 `.lnk` 扫描（`IShellLinkW`）+ `App Paths` 注册表 + `Get-StartApps`（UWP）
-  - **首版范围**：仅 程序 / 命令 / 网页 / 数学计算
-  - ⚠ 文件搜索是最大成本（无 Everything SDK 需自建 USN Journal 索引）→ **文件搜索单独后置**
-  - 验收：冷启动首屏 < 200ms；输入 3 字内出结果
-
-- [ ] **P3-13 命令面板** — `launcher.command_palette` · M · 部分 ▲提权
-  - 实现：**规则/正则意图解析（动词 + 对象表）** → 调用对应插件动作
-  - 示例："关闭所有记事本" = 匹配 `关闭 + 所有 + 进程名(notepad.exe)` → 结束进程
-  - ⚠ 本地无 LLM → **明确限定为规则引擎**，不承诺自然语言理解能力
-  - 验收：内置 20 条常用指令规律；未匹配时给出"最接近的指令建议"
-
 ### 安全与隐私
 
 - [x] **P3-14 USB 设备管控** — `security.usb_control` · M · 部分 ▲提权
@@ -499,18 +478,88 @@
     用户插着的移动硬盘很可能正在备份/挂着虚拟机，"一键全弹"是把风险交给自己。
     另：**不提供强制弹出**（不绕过 veto），宁可弹不出来也不替用户决定"数据可以丢"。
 
-### 个性化与主题
+### 网络与互联（新增）
 
-- [ ] **P3-15 任务栏透明度** — `personal.taskbar_alpha` · L · 无提权
-  - Win10：`SetWindowCompositionAttribute` 作用于 `Shell_TrayWnd` / `Shell_SecondaryTrayWnd`
-  - Win11：注册表 `UseOLEDTaskbarTransparency` 等可控项 + 重启 explorer 生效
-  - ⚠ 未公开 API + 依赖 explorer 版本，每次 Windows 大版本更新都可能失效
-  - 必备：**失败自动还原**；提供一键"恢复系统默认"；explorer 重启前提示用户
-  - 验收：透明度调节生效；异常时自动回到系统默认不留坏状态
-
-- [ ] **P3-16 开始菜单增强** — `personal.start_menu` · M · 无提权
-  - 实现：注册表可控项（如 `Start_IrisRecommendations`、`HideRecommendedSection` 等）
-  - ⚠ **「自定义磁贴」已裁剪**：需改 StartMenuExperienceHost，不公开且极易被系统更新破坏
-  - 验收：隐藏"推荐项"后开始菜单立即变化，可一键恢复
+- [x] **新增 F2 局域网跨平台文件传输** — `net.lan_transfer` · XL · 无提权 · **已交付 2026-09-15**
+  - 需求（用户插单）：**同一局域网内**的文件互传 —— ① 电脑 ↔ 电脑**双向**；
+    ② 电脑 ↔ 手机**双向**（手机侧**不装 App**，用浏览器就行）。
+  - **产出**：
+    - 协议与页面引擎 `plugins/common/LanTransferEngine.{h,cpp}`（纯函数，**插件与自检同一份源码**）：
+      HTTP 请求头解析 / 响应组装 / URL 编解码 / MIME / 目录清单 /
+      ★ **`resolveSharePath()` 目录穿越闸门** / 移动端友好的目录页 HTML /
+      局域网发现报文（`WINEASE-LAN/1|主机|端口|设备名`，UDP 27182）/ multipart 边界与文件名解析
+    - 服务端 `plugins/net_lan_transfer/lan_http_server.{h,cpp}`（`QTcpServer` 上的极小 HTTP 服务，
+      **每连接一个状态机**）：`GET /`（手机页面）/ `GET /files/<路径>`（流式下载）/
+      `GET /api/list`（JSON，给对端 WinEase）/ `POST /upload`（multipart 流式落盘，手机上传）/
+      `PUT /api/put?name=`（裸 body 流式落盘，WinEase → WinEase）
+    - 插件 `plugins/net_lan_transfer/`（id `net.lan_transfer`）：分享目录、设备名、端口、
+      启停、**访问地址可复制**、UDP 广播发现对端设备列表、向选中设备发文件、传输记录
+  - ★ **四条工程纪律**：
+    ① 流式（上传下载都不整读进内存，几个 GB 的录像也不吃爆内存）；
+    ② **路径一律过 `resolveSharePath`**：`..` 穿越 / 盘符 / `CON`、`NUL` 这类保留设备名一律 403，
+       且失败必须在日志里留痕；
+    ③ 同名文件**自动改名**（`名字 (1).ext`），绝不静默覆盖；
+    ④ 只在用户**启用**时监听，**停用立刻关端口**（自检断言"停用后端口连不上了"）。
+  - ⚠ **已知边界（写进帮助页，不藏）**：明文 HTTP、无鉴权 → 定位是自家局域网互传，
+    公共 Wi-Fi 上不要开着；手机侧需要手动输入/粘贴地址（二维码留待后续）。
+  - **自检断言**（`tests/feature_smoke/lan_transfer_group.cpp`，**只打 127.0.0.1 回环**，
+    不碰真实局域网）：协议解析（含中文路径 URL 解码、`NeedMoreData`、垃圾头判非法）、
+    ★ **六种目录穿越/盘符/保留设备名全部被拒**、正常路径仍可解析（拦越界不是把功能拦死）、
+    multipart 边界与中文文件名、手机页面含上传表单、以及**真实回环**：
+    GET 页面 200 且列出文件 → `GET /files/` 下载内容**逐字节一致** → `PUT /api/put`
+    **磁盘上真的多出**文件且内容逐字节一致 → 同名再传自动改名 → 越界请求 403 且目录无变化 →
+    停用后端口关闭。
 
 ---
+
+## P3 裁剪与降级记录（续）
+
+- **C11（2026-09-15）PawnIO 路线作废，温度采集改走 C++/CLI 桥接**：
+  P3-07 原计划用 PawnIO 读 Intel MSR / AMD SMN 拿 CPU 温度，前置是用户态 `PawnIOLib.dll`。
+  该 DLL 长期缺失、`PawnIOLib.h` 精确签名与许可证始终未确认，而"照猜写代码"是本工程明令禁止的。
+  2026-09-15 按用户要求改用 **C++/CLI 混合模式程序集直接调用 LibreHardwareMonitorLib**
+  （`refrences/LiteMonitor` 用的同一个库）：当天即读到真实读数（199 个传感器、GPU 温度有值）。
+  → PawnIO 相关的实现与配置**从路线图中删除**（不是"禁用"）；`p3_spike` 的 PawnIO 探针保留，
+  它现在的作用是**如实记录"这条路为什么没走"**。
+- **C12（2026-09-15）9 项未完成的 P3 项直接删除**：见文件开头说明。
+  删除的是"条目本身"，不是"把勾去掉"——留着会让人以为它们还在计划里。
+
+---
+
+## 交付与打包（新增）
+
+- [x] **新增 F3 单文件自解压安装程序** — 构建目标 `winease_installer` · M · 无提权 · **已交付 2026-09-15**
+  - 需求（用户插单）：把所有 DLL 封装成**一个自解压可执行文件**；编译安装阶段**自动复制全部
+    依赖运行库**（VC++ / .NET 等）；一键式集成到构建流程；产物支持**无网络安装**；
+    在目标系统上能正确解压并**注册必要组件**。
+  - **产出**：
+    - `tools/sfx/`（`winease-setup.exe`）：**SFX 壳**，`/MT` 静态链接（它自己绝不能依赖
+      VC++ 运行库，否则"装运行库的工具有运行库依赖"就成鸡生蛋）。支持：
+      默认安装到 `%LOCALAPPDATA%\Programs\WinEase`、`--dir`、`--silent`、`--launch`、
+      `--verify`（解到临时目录**逐文件校验 SHA-256**，只读）、`--selftest`（让桥接真实枚举传感器）、
+      `--list`、`--uninstall`（按清单删文件 + 回收空目录树 + 移除 HKCU 卸载项与快捷方式）
+    - `scripts/stage_dist.ps1`：收集（主程序/助手/38 插件/桥接与托管依赖 + `windeployqt` 收 Qt +
+      VC++ Redist 的应用本地部署 + .NET 检测）→ 生成清单（逐文件 SHA-256）→ `makecab`（LZX）
+      → 追加负载与 96 字节尾部 → **单文件安装程序**
+    - `cmake/WinEaseDist.cmake`：`winease_installer` / `winease_dist_stage` 两个目标，
+      依赖写全（主程序 + 助手 + 全部插件），**插件没编完不会打包**
+    - `tests/installer_smoke/`：**17 项**链路自检（见下）
+    - `docs/DISTRIBUTION.md`：出货命令、包结构、依赖策略、实测边界、卸载、踩坑
+  - ★ **依赖审计作为"离线可用"的硬证据**（`installer_smoke`）：把负载里**每个 PE 的导入表**都解析出来，
+    每一条非系统导入都必须在负载内找得到 —— 这比"文件清单看起来齐了"强得多：缺
+    `vcruntime140.dll` / `Qt6Core.dll` / `qwindows.dll` 这类依赖会在这里直接红，而不是等用户双击。
+  - ★ **实测边界（写进安装器与文档，不藏）**：.NET 运行库**默认不随包附带** —— 自包含布局
+    （`coreclr.dll` + `ijwhost` + `includedFrameworks`）在原生宿主里加载 IJW 会 fail-fast
+    （0xC0000409，见踩坑 #88）；而"用目标机的 .NET 8"这条路验证通过（`--selftest` 枚举到 199 个传感器）。
+    因此安装器**主动检测** .NET 8：装了就报版本，没装就如实说明"只有温度类指标不可用，其它功能不受影响"。
+  - **交付物**：`WinEase-0.1.0-x64-Setup.exe` —— **21.3 MB 单文件**、121 个文件、
+    离线可装、免管理员、可卸载（含 HKCU 卸载项与开始菜单快捷方式）
+  - **自检断言**（`installer_smoke`，17 项 / exit 0）：单文件且体积含全部依赖、
+    `--verify` 缺失 0 / 内容不符 0、★★ 依赖审计全覆盖、关键文件齐备、插件数与构建产物逐个不差、
+    ★ HKCU 卸载项与开始菜单快捷方式**真实存在**、★ 桥接自检枚举到传感器、
+    ★ 卸载后无文件残留、**空壳目录树收干净**、注册项与快捷方式已删除。
+  - ⚠ **本项踩了 7 个坑**（全部进 `docs/traps.md`）：#85 PowerShell 数组字面量里的 `+` 拼接会把
+    一行 JSON 裂成三行（→ 坏 runtimeconfig → 加载即 fail-fast）；#86 清单是"两个空格"分隔而解析按
+    一个空格切（→ 119 个文件全部报缺失）；#87 `FDICreate` 无理由失败 → 改用 `SetupIterateCabinetW`；
+    #88 自包含 IJW 的 0xC0000409；#89 `IShellLink` 前没 `CoInitializeEx`（快捷方式创建失败）；
+    #90 卸载只删了 `plugins` 与根目录（Qt 插件目录留成空壳）；#91 `.ps1` 里写中文注释导致脚本解析失败。

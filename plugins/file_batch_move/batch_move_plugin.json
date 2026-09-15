@@ -1,0 +1,9 @@
+{
+    "name": "批量移动文件",
+    "id": "file.batch_move",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "用正则表达式批量挑文件并移动到目标目录，先出计划再落盘，可一键撤销"
+}

@@ -90,8 +90,10 @@ add_subdirectory(security_device_alert)   # P2-11 摄像头/麦克风使用提�
 add_subdirectory(file_unlock)            # P3-02 文件锁定解除（查出占用者 → 结束 → 移到回收站）
 add_subdirectory(window_virtual_desktop) # P3-01 虚拟桌面增强（探测只读；切换靠模拟系统快捷键）
 add_subdirectory(security_usb_control)   # P3-14 USB 设备管控（判据在平台层 StorageDevices）
-add_subdirectory(file_convert)           # P3-03 批量格式转换（图片格式 + 文本字符集，进度可取消）
+add_subdirectory(file_convert)           # P3-03 批量格式转换
+add_subdirectory(file_batch_move)        # 新增：批量移动文件（正则匹配 + 计划/预演/撤销）（图片格式 + 文本字符集，进度可取消）
 add_subdirectory(monitor_hardware_hud)   # P3-07 硬件监控悬浮窗（第一批：CPU/内存/网速/GPU/磁盘温度）
+add_subdirectory(net_lan_transfer)       # 新增：局域网跨平台文件传输（手机免装 App；PC↔PC 发现直发）
 add_subdirectory(media_mixer)            # P3-09 音量混合器（会话音量/静音；按应用合并同类会话）
 add_subdirectory(media_player_panel)     # P3-11 媒体控制面板（SMTC 会话控制 + 系统媒体键，两组分开）
 

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    WinEase.LiteMonitorDeps —— 只为"把 LibreHardwareMonitorLib 及其依赖取回来"而存在。
+
+    为什么单独做一个 csproj（而不是直接把 DLL 提交进仓库）：
+      * LibreHardwareMonitorLib 0.9.6 自身拖着 HidSharp / DiskInfoToolkit /
+        RAMSPDToolkit-NDD / BlackSharp.Core / System.IO.Ports 等一串依赖，
+        手工挑容易漏，漏了就是运行时 FileNotFoundException。
+      * 让 NuGet 自己解依赖，构建期 `dotnet publish` 一次，产物平铺到
+        build/bin（与桥接 DLL、主程序同目录）——CoreCLR 的托管程序集探测
+        会按"应用基目录"去找，同目录是最省事的部署形态。
+
+    本工程**不产出任何代码**：它编译出的 WinEase.LiteMonitorDeps.dll 只是副产品，
+    真正被引用的是随它一起落盘的那批依赖程序集。
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AssemblyName>WinEase.LiteMonitorDeps</AssemblyName>
+    <RootNamespace>WinEase.LiteMonitorDeps</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>none</DebugType>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      与 refrences/LiteMonitor 完全同一个包、同一个版本：
+      桥接层与参考工程读的是同一套接口（Computer / IHardware / ISensor），
+      版本分叉会导致"参考工程能读、我们读不到"这类最难排查的问题。
+    -->
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+  </ItemGroup>
+
+</Project>

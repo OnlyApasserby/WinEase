@@ -20,6 +20,7 @@
 
 #include "HudMetrics.h"
 #include "sdk/IFeaturePlugin.h"
+#include "win32/LiteMonitorBridge.h"   // C++/CLI 桥接（P3-07 改版）：CPU/主板/GPU 温度、风扇
 #include "win32/SystemInfo.h"
 
 #include <QPoint>
@@ -91,6 +92,10 @@ private:
     WinEase::Win32::CpuSampler m_cpu;
     WinEase::Win32::NetworkSampler m_network;
     WinEase::Win32::GpuSampler m_gpu;
+    /// C++/CLI 桥接会话（LibreHardwareMonitor）。
+    /// ⚠ 必须是成员：首次 sample() 要打开硬件库（数百毫秒起），
+    ///    每次采样都开关一遍会让刷新肉眼可见地卡。
+    WinEase::Win32::LiteMonitorSession m_bridge;
 
     QTimer m_tickTimer;
     /// 面板由宿主托管，可能被宿主回收 → 用 QPointer 防悬垂

@@ -1,0 +1,9 @@
+{
+    "name": "局域网文件传输",
+    "id": "net.lan_transfer",
+    "version": "1.0.0",
+    "category": "file",
+    "author": "WinEase",
+    "requiresAdmin": false,
+    "description": "手机免装 App 用浏览器与电脑互传文件；同一局域网内的 WinEase 之间可互相发现直发"
+}

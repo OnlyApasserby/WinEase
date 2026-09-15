@@ -23,5 +23,6 @@ add_subdirectory(elevation_smoke)
 add_subdirectory(plugin_smoke)
 add_subdirectory(ui_smoke)       # 主界面呈现（卡片两行 + 帮助栏目）
 add_subdirectory(feature_smoke)
+add_subdirectory(installer_smoke) # 打包链路（自解压安装程序：完整性 / 依赖审计 / 安装注册 / 卸载）
 add_subdirectory(p3_spike)   # P3 技术预研探针（只读；结论回写 ROADMAP 的 P3 各项）
 add_subdirectory(scratch_repro)  # ⚠ 临时排障目标，定案后删除

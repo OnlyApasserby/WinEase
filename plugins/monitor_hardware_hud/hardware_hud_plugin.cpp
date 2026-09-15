@@ -26,6 +26,9 @@ const QString kKeyShowMemory = QStringLiteral("showMemory");
 const QString kKeyShowNetwork = QStringLiteral("showNetwork");
 const QString kKeyShowGpu = QStringLiteral("showGpu");
 const QString kKeyShowTemperature = QStringLiteral("showTemperature");
+const QString kKeyShowGpuTemp = QStringLiteral("showGpuTemp");
+const QString kKeyShowBoardTemp = QStringLiteral("showBoardTemp");
+const QString kKeyShowFan = QStringLiteral("showFan");
 const QString kKeyIntervalMs = QStringLiteral("intervalMs");
 const QString kKeyInteractive = QStringLiteral("interactive");
 const QString kKeyAnchorX = QStringLiteral("anchorX");
@@ -50,6 +53,9 @@ const char *const kObjMemoryCheck = "hudMemoryCheck";
 const char *const kObjNetworkCheck = "hudNetworkCheck";
 const char *const kObjGpuCheck = "hudGpuCheck";
 const char *const kObjTemperatureCheck = "hudTemperatureCheck";
+const char *const kObjGpuTempCheck = "hudGpuTempCheck";
+const char *const kObjBoardTempCheck = "hudBoardTempCheck";
+const char *const kObjFanCheck = "hudFanCheck";
 const char *const kObjIntervalSpin = "hudIntervalSpin";
 const char *const kObjInteractiveCheck = "hudInteractiveCheck";
 const char *const kObjResetButton = "hudResetPositionButton";
@@ -93,16 +99,21 @@ QString HardwareHudPlugin::detailedDescription() const
     return QStringLiteral(
         "在桌面上放一个小面板，实时显示本机的硬件读数，随时瞟一眼就知道机器在干什么。\n"
         "\n"
-        "本批显示 5 项指标（全部零依赖、零提权）：\n"
+        "显示指标分两类：\n"
+        "① 原生采集（零依赖零提权）\n"
         "· CPU 利用率　PDH 计数器，与任务管理器同源\n"
         "· 内存占用　　已用 / 总量 + 百分比\n"
         "· 网速　　　　下行 / 上行实时速率\n"
         "· GPU 利用率　PDH 的 GPU Engine，与任务管理器同源\n"
         "· 磁盘温度　　IOCTL_STORAGE_QUERY_PROPERTY，读不到时如实说明原因\n"
+        "② C++/CLI 桥接（WinEaseLiteMonitorBridge.dll → LibreHardwareMonitor）\n"
+        "· CPU 温度 / 主板温度 / GPU 温度 / 风扇转速\n"
+        "　桥接程序集直接调用 LibreHardwareMonitorLib（与 refrences/LiteMonitor 同一个库）。\n"
+        "　CPU 与主板温度要经内核驱动读 MSR / SuperIO，多数机器需要**以管理员身份运行**；\n"
+        "　GPU 温度走厂商用户态接口，普通权限即可；风扇转速视机型而定。\n"
         "\n"
-        "已知限制：CPU / 主板温度需要 PawnIO 驱动 + 用户态 PawnIOLib.dll，"
-        "本机缺 PawnIOLib.dll，因此“CPU 温度”一行显示“需要 PawnIOLib.dll（本机缺失）”"
-        "而不是 0°C 或留空——该能力属于后续里程碑。\n"
+        "纪律：**读不到的指标一律如实写原因**（缺组件 / 权限不够 / 硬件没有），"
+        "绝不用 0°C 或空白冒充读数。\n"
         "\n"
         "用法：\n"
         "· 主快捷键开关悬浮窗；面板位置会被记住，下次开启回到原处\n"
@@ -335,10 +346,35 @@ Hud::MetricInput HardwareHudPlugin::collectInput()
         input.disks.append(reading);
     }
 
-    // CPU / 主板温度：本批不接 PawnIO（PawnIOLib.dll 本机缺失，签名未定，不凭猜写代码）。
-    // 这里如实报不可用 —— 第二里程碑把它替换成真实读数即可，其余链路无需改动
+    // ---- C++/CLI 桥接层（LibreHardwareMonitor）：CPU / 主板 / GPU 温度、风扇转速 ----
+    //
+    // 为什么走桥接：CPU 封装温度要读 MSR / SuperIO，原生 C++ 侧没有现成实现，
+    // 而 refrences/LiteMonitor 已经用 LibreHardwareMonitorLib 把这件事做全了。
+    // 详见 src/bridge/WinEaseLiteMonitorBridge.cpp 的头部说明。
+    //
+    // ⚠ 桥接层的首次 sample() 要打开硬件库（几百毫秒~数秒），
+    //    所以会话对象是**插件成员**（m_bridge），不能每次采样都开关一遍。
+    //
+    // ⚠ 这一步可能加载 CLR（首次调用时），失败一律 fail-closed：
+    //    读不到就把原因填进 input，由 HudMetrics 决定怎么显示，绝不在这里填 0。
+    const WinEase::Win32::LiteHardwareSnapshot bridge = m_bridge.sample();
+    input.bridgeAvailable = bridge.available;
+    input.bridgeError = bridge.error;
+    input.bridgeSensors.reserve(bridge.sensors.size());
+    for (const WinEase::Win32::LiteSensor &sensor : bridge.sensors) {
+        Hud::BridgeSensor converted;
+        converted.hardware = sensor.hardware;
+        converted.name = sensor.name;
+        converted.identifier = sensor.identifier;
+        converted.kind = static_cast<Hud::SensorKind>(static_cast<int>(sensor.kind));
+        converted.hasValue = sensor.hasValue;
+        converted.value = sensor.value;
+        input.bridgeSensors.append(converted);
+    }
+
+    // CPU 温度已在上面按桥接层读数统一挑选（HudMetrics::buildSnapshot），这里不再另填；
+    // 若桥接层不可用，input.cpuTempError 留空即由 buildSnapshot 用 bridgeError 说明原因
     input.cpuTempValid = false;
-    input.cpuTempError = Hud::cpuTempUnavailableText();
 
     return input;
 }
@@ -464,6 +500,9 @@ void HardwareHudPlugin::loadOptions()
     m_options.network = svc->configValue(id(), kKeyShowNetwork, true).toBool();
     m_options.gpu = svc->configValue(id(), kKeyShowGpu, true).toBool();
     m_options.temperature = svc->configValue(id(), kKeyShowTemperature, true).toBool();
+    m_options.gpuTemp = svc->configValue(id(), kKeyShowGpuTemp, true).toBool();
+    m_options.boardTemp = svc->configValue(id(), kKeyShowBoardTemp, true).toBool();
+    m_options.fan = svc->configValue(id(), kKeyShowFan, true).toBool();
 
     m_intervalMs = qBound(kMinIntervalMs,
                           svc->configValue(id(), kKeyIntervalMs, 1000).toInt(),
@@ -602,8 +641,21 @@ QWidget *HardwareHudPlugin::createSettingsWidget(QWidget *parent)
     QCheckBox *temperatureCheck = makeCheck(
         QString::fromLatin1(kObjTemperatureCheck), QStringLiteral("温度"),
         m_options.temperature,
-        QStringLiteral("磁盘温度（零依赖，可读）+ CPU 温度（需要 PawnIOLib.dll，本机缺失）。"),
+        QStringLiteral("磁盘温度（零依赖）+ CPU 温度（C++/CLI 桥接，多数机器需管理员权限）。"),
         1, 1);
+    QCheckBox *gpuTempCheck = makeCheck(
+        QString::fromLatin1(kObjGpuTempCheck), QStringLiteral("GPU 温度"),
+        m_options.gpuTemp,
+        QStringLiteral("C++/CLI 桥接层读 GPU 温度（厂商用户态接口，普通权限即可）。"),
+        1, 2);
+    QCheckBox *boardTempCheck = makeCheck(
+        QString::fromLatin1(kObjBoardTempCheck), QStringLiteral("主板温度"),
+        m_options.boardTemp,
+        QStringLiteral("C++/CLI 桥接层读主板 SuperIO 温度，多数机器需要管理员权限。"),
+        2, 0);
+    QCheckBox *fanCheck = makeCheck(
+        QString::fromLatin1(kObjFanCheck), QStringLiteral("风扇"), m_options.fan,
+        QStringLiteral("C++/CLI 桥接层读风扇转速；笔记本 / 显卡风扇常读不到。"), 2, 1);
 
     layout->addWidget(metricsGroup);
 
@@ -681,6 +733,9 @@ QWidget *HardwareHudPlugin::createSettingsWidget(QWidget *parent)
     bindOption(networkCheck, &Hud::MetricOptions::network, kKeyShowNetwork);
     bindOption(gpuCheck, &Hud::MetricOptions::gpu, kKeyShowGpu);
     bindOption(temperatureCheck, &Hud::MetricOptions::temperature, kKeyShowTemperature);
+    bindOption(gpuTempCheck, &Hud::MetricOptions::gpuTemp, kKeyShowGpuTemp);
+    bindOption(boardTempCheck, &Hud::MetricOptions::boardTemp, kKeyShowBoardTemp);
+    bindOption(fanCheck, &Hud::MetricOptions::fan, kKeyShowFan);
 
     connect(intervalSpin, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
         m_intervalMs = qBound(kMinIntervalMs, value, kMaxIntervalMs);

@@ -269,19 +269,75 @@ CPU/主板温度作为第二个里程碑（前置是把 `PawnIOLib.dll` 放到 `
 
 ---
 
-## 5. GPU 温度：仍不可行（默认不做）
+## 5. GPU 温度：改由 C++/CLI 桥接解决（2026-09-15 结论已翻转）
 
-Windows **没有公开统一的 GPU 温度 API**。可选来源全部是厂商 SDK：
+原结论（"Windows 没有公开统一的 GPU 温度 API，只能用厂商 SDK，默认不做"）**只对了一半**：
+Windows 确实没有统一 API，但**不需要我们自己去调厂商 SDK** ——
+`LibreHardwareMonitorLib` 已经把 NVIDIA / AMD / Intel 三条路都封装好了，而且走的是
+**厂商的用户态接口**，普通权限即可读到（本机实测 `GPU Core = 42.7°C`）。
 
-| 厂商 | SDK | 性质 |
+**现行方案**：整个温度类采集（CPU / 主板 / GPU / 风扇）统一走
+**C++/CLI 混合模式程序集 → LibreHardwareMonitorLib**，见 §5.1。
+
+> 厂商 SDK 对照表（**留档**：说明"为什么是库在做这件事，而不是我们"）：
+
+| 厂商 | 库内部走什么 | 我们是否需要处理 |
 |---|---|---|
-| NVIDIA | NVML / NVAPI | 第三方 |
-| AMD | ADL | 第三方 |
-| Intel | IGCL | 第三方 |
+| NVIDIA | NVML / NVAPI | 否（由 LibreHardwareMonitorLib 封装） |
+| AMD | ADL | 否（同上） |
+| Intel | 核显走驱动接口；CPU 走 MSR（需内核驱动） | 否（同上；MSR 那条**需要管理员**，读不到就如实报原因） |
 
-**处理方式**：预留 `monitor.gpu_temp` 为**可选、默认不参与构建**的插件。若将来要做，
-采用与 PawnIO 相同的策略——**运行期动态加载厂商 DLL，缺失则功能自动隐藏**。
-不建议为此引入任何编译期第三方依赖。
+---
+
+## 5.1 C++/CLI 桥接：依赖与构建约定（P3-07 改版）
+
+**为什么允许在本工程里出现 `/clr`**：这是全工程唯一的例外，理由只有一个 ——
+温度类读数在原生 C++ 侧没有等价物，而 `refrences/LiteMonitor` 用
+`LibreHardwareMonitorLib` 已经把这件事做全了。任何**新功能**都不许顺手往 `src/bridge/` 里塞。
+
+| 依赖 | 版本/位置 | 缺了会怎样 |
+|---|---|---|
+| .NET 8 SDK（`dotnet` 在 PATH） | 构建期 | CMake 打印"未找到 dotnet，跳过"，插件照常构建，运行时如实报"桥接组件不可用" |
+| MSVC 的 C++/CLI 支持（`/clr:netcore`）+ `ijwhost.lib` | 构建期（VS 组件 / `Microsoft.NETCore.App.Host.win-x64` 包） | 同上（跳过桥接目标） |
+| .NET 8 **运行时**（`Microsoft.NETCore.App 8.x`） | **运行期** | 桥接 DLL 里 `ijwhost.dll` 起不来 → 面板写"桥接组件 WinEaseLiteMonitorBridge.dll 未加载（错误码 …）" |
+| `LibreHardwareMonitorLib 0.9.6` + 8 个传递依赖 | 构建期由 NuGet 还原，产物**平铺到 `build/bin`** | 构建期就失败（`dotnet publish` 报错），不会悄悄少文件 |
+
+**部署形态**（`build/bin` 里与主程序同目录，CoreCLR 按"应用基目录"探测）：
+
+```
+WinEaseLiteMonitorBridge.dll          ← 桥接程序集（/clr:netcore，我们自己构建）
+WinEaseLiteMonitorBridge.runtimeconfig.json  ← 告诉 ijwhost 加载 net8.0 共享框架（CMake 生成）
+ijwhost.dll                           ← 从 Microsoft.NETCore.App.Host 包里取最新版本复制过来
+LibreHardwareMonitorLib.dll + 8 个依赖 ← dotnet publish 的产物
+```
+
+**权限前提（写进帮助页，不藏）**：LibreHardwareMonitor 读 CPU 的 MSR / 主板 SuperIO 要经内核驱动
+→ **多数机器需要以管理员身份运行 WinEase**；GPU 温度不需要。读不到时面板写
+"无读数（需要管理员权限）"，**绝不显示 0°C**。
+
+**构建期踩过的三个坑**（详见 `traps.md` #81~#83）：CMake 写 `CLRSupport=NetCore` 会让
+VS 的 MSBuild 去 Import `Microsoft.NET.Sdk` 而解析不了；VC 工程默认 `TargetFrameworkVersion=v4.0`
+会触发 `MSB3644`；`/AI`、`/FU` 若不紧贴路径会被 CMake 拆错位。
+
+---
+
+## 5.2 构建/自检"看起来卡死"时：用带超时的脚本
+
+`feature_smoke` 通过 `WINEASE_PLUGIN_TARGETS` 依赖**全部插件**，因此它实际上是一次全量构建，
+耗时较长；再叠加默认并行度把机器压满，很容易被误判成"卡死"。仓库里备了两个带超时的脚本
+（**纯 ASCII 写成** —— Windows PowerShell 5.1 按 ANSI 读取 `.ps1`，中文注释会让它直接解析失败）：
+
+```powershell
+# 全量构建 feature_smoke：限并行 4、20 分钟超时、日志落 build\logs\
+powershell -ExecutionPolicy Bypass -NoProfile -File build\build_feature_smoke.ps1
+powershell -ExecutionPolicy Bypass -NoProfile -File build\build_feature_smoke.ps1 -TimeoutMinutes 30 -Parallel 2
+
+# 跑任意自检：12 分钟超时，输出落盘并自动筛出 [失败] 行
+powershell -ExecutionPolicy Bypass -NoProfile -File build\run_smoke.ps1 -Exe feature_smoke -TimeoutMinutes 12
+powershell -ExecutionPolicy Bypass -NoProfile -File build\run_smoke.ps1 -Exe win32_smoke
+```
+
+两个脚本都在超时后**杀掉进程并打印日志尾部**（卡在哪一步一眼可见），并如实回传退出码。
 
 ---
 
@@ -562,6 +618,8 @@ QString back = QString::fromWCharArray(w.c_str(), 15);  // ← 结果为空串
 
 | 日期 | 变更 |
 |---|---|
+| 2026-09-15 | **新增打包与发布**（另见 `docs/DISTRIBUTION.md`）：`cmake --build build --target winease_installer` 出一条命令产出**单文件离线安装程序**（21.3 MB，内含 Qt + VC++ 运行库 + 38 个插件 + 桥接）。相关外部工具：`windeployqt`（随 Qt）、`makecab`（Windows 自带）、`dotnet`（仅在开启 `.NET` 随包附带的实验开关时需要）。新增自检 `installer_smoke.exe`（打包链路 17 项，含**逐 PE 依赖审计**）。⚠ 两条硬约束记进 §5.2 那条纪律的家族：构建/打包脚本 `scripts\\stage_dist.ps1` **必须纯 ASCII**（PowerShell 5.1 按 ANSI 读 `.ps1`，中文注释会让脚本解析失败 → 踩坑 #91）；`.NET` 运行库默认**不**随包（自包含 IJW 在原生宿主里 fail-fast 0xC0000409 → 踩坑 #88），安装器改为主动检测并如实说明影响面 |
+| 2026-09-15 | **§5 结论翻转 + 新增 §5.1 / §5.2（用户要求"P3-07 改用 C++/CLI 桥接"）**：GPU 温度不是"做不了"，而是**不必自己调厂商 SDK** —— 统一走 C++/CLI 桥接 `LibreHardwareMonitorLib`（与 `refrences/LiteMonitor` 同一个包 0.9.6），CPU / 主板 / GPU / 风扇四类读数一次解决，且 GPU 走用户态接口、**普通权限即可**。§5 保留厂商 SDK 对照表作为"为什么是库在做这件事"的留档。新增 **§5.1**（四个依赖谁缺了会怎样、`build/bin` 的部署形态、管理员权限前提、构建期三个坑）与 **§5.2**（带超时的构建/自检脚本 `build\build_feature_smoke.ps1` / `build\run_smoke.ps1`，以及"`.ps1` 必须 ASCII"这条硬约束）。PawnIO 方案随之下线（原 §4 保留为"为什么没走这条路"的记录） |
 | 2026-09-13 | 初版。确认 Windows SDK 自带 C++/WinRT，将 PDF/OCR/媒体/录屏定为零安装方案；PawnIO 定为温度监控方案；论证 QtPdf 补装成本过高 |
 | 2026-09-13 | 用户完成 QtMultimedia 补装，工程自动探测生效（`QtMultimedia : ON`）；评估 MinGW 迁移后决定保留 MSVC；补充 §3.3 第 4 条"DIP 感知必须显式声明" |
 | 2026-09-15 | **P3-07 第一批落地后对 §4.5 的补正**：磁盘温度走 **`\\.\PhysicalDriveN` + SDK 枚举 `StorageDeviceTemperatureProperty`**（本机实测 40~46°C 可读，与 §4.5 的 39°C 一致）。⚠ 增补一条实现侧的硬约束：**属性 ID 不要用数字字面量** —— 曾手抄成 `22`，而本机 SDK 的 `StorageDeviceTemperatureProperty` 是 **52**，同一个 IOCTL 因此返回 `ERROR_INVALID_FUNCTION`，把"本来就可读"误判成"驱动不支持"（踩坑 #72）。另：型号改由 `StorageDeviceProperty` 的厂商/产品串拼出（不再依赖 SetupDi） |

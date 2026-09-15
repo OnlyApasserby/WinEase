@@ -1,0 +1,10 @@
+F:\develop\1919810\src\bridge\managed\bin\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.deps.json
+F:\develop\1919810\src\bridge\managed\bin\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.dll
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.csproj.AssemblyReference.cache
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.GeneratedMSBuildEditorConfig.editorconfig
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.AssemblyInfoInputs.cache
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.AssemblyInfo.cs
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.csproj.CoreCompileInputs.cache
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\WinEase.LiteMonitorDeps.dll
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\refint\WinEase.LiteMonitorDeps.dll
+F:\develop\1919810\src\bridge\managed\obj\Release\net8.0\win-x64\ref\WinEase.LiteMonitorDeps.dll

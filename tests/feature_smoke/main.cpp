@@ -34,8 +34,10 @@
 #include "device_group.h"
 #include "display_group.h"
 #include "file_group.h"
+#include "batch_move_group.h"
 #include "hud_group.h"
 #include "input_group.h"
+#include "lan_transfer_group.h"
 #include "mixer_group.h"
 #include "overlay_group.h"
 #include "p3_group.h"
@@ -499,7 +501,8 @@ int main(int argc, char *argv[])
     //       绝不允许显示 0 或空白"这条最硬的纪律（与插件编同一份 HudMetrics 源码）；
     //     · 真实面板侧：启用即出一个置顶/分层/不抢焦点/点击穿透的小面板，
     //       内存与磁盘温度必须是与平台层同源的真实读数，
-    //       **CPU 温度必须如实报"缺 PawnIOLib.dll"**（第二里程碑才会变成真实值）。
+    //       温度类指标必须来自 **C++/CLI 桥接（LibreHardwareMonitor）**：要么真实读数、
+    //       要么非空的具体原因（权限不够 / 组件缺失），不许 0°C 或空白。
     //  ⚠ 本组不移动光标、不改系统状态，只在桌面上短暂显示一块面板；
     //     收尾断言宿主登记表清空（不留置顶窗口）。
     // -----------------------------------------------------------------------
@@ -537,6 +540,30 @@ int main(int argc, char *argv[])
     const int playerGroupFailures =
         FeatureSmoke::runPlayerGroupTests(reporter, manager, services);
     reporter.info(QStringLiteral("媒体控制面板失败项：%1").arg(playerGroupFailures));
+
+    // -----------------------------------------------------------------------
+    //  批量移动文件（新增：正则匹配 + 计划/预演/撤销）
+    //      这一组会真的在临时目录里搬文件，并点"撤销"搬回来 ——
+    //      断言落在**磁盘状态**上（文件真的在/真的不在），不是函数返回值。
+    // -----------------------------------------------------------------------
+    const int batchMoveStart = reporter.failures();
+    {
+        FeatureSmoke::runBatchMoveGroupTests(reporter, manager, services);
+    }
+    const int batchMoveFailures = reporter.failures() - batchMoveStart;
+    reporter.info(QStringLiteral("批量移动文件失败项：%1").arg(batchMoveFailures));
+
+    // -----------------------------------------------------------------------
+    //  局域网文件传输（新增：手机浏览器 / PC↔PC）
+    //      ⚠ 只连 127.0.0.1 回环：不起广播、不碰真实局域网，任何机器上都能重跑。
+    //        验的是"路径穿越必须被挡"这条安全红线 + 真上传真下载真落盘。
+    // -----------------------------------------------------------------------
+    const int lanTransferStart = reporter.failures();
+    {
+        FeatureSmoke::runLanTransferGroupTests(reporter, manager, services);
+    }
+    const int lanTransferFailures = reporter.failures() - lanTransferStart;
+    reporter.info(QStringLiteral("局域网文件传输失败项：%1").arg(lanTransferFailures));
 
     // 先卸载插件（让各插件在探针窗口仍然存在时完成还原），再关掉子进程与钩子
     manager.unloadAll();
